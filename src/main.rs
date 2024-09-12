@@ -1,13 +1,13 @@
-mod vkc_init;
+mod context;
 
 // Vkc = Vulkan custom -> Not provided by ash or Vulkan but implemented by me
-use vkc_init::VkcContext;
+use context::Context;
 
 use winit::application::ApplicationHandler;
 use winit::dpi::PhysicalSize;
 use winit::event::WindowEvent;
 use winit::event_loop::{ActiveEventLoop, ControlFlow, EventLoop};
-use winit::raw_window_handle::HasDisplayHandle;
+use winit::raw_window_handle::{HasDisplayHandle, RawDisplayHandle};
 use winit::window::{Window, WindowId};
 
 const WIDTH: u32 = 800;
@@ -16,19 +16,19 @@ const HEIGHT: u32 = 800;
 // Hold the application technical details
 struct App {
     window: Option<Window>,
-    vk_context: VkcContext,
+    ctx: Context,
 }
 
 impl App {
     fn new(event_loop: &EventLoop<()>) -> App {
-        let display_handle = event_loop
+        let display_handle: RawDisplayHandle = event_loop
             .owned_display_handle()
             .display_handle()
             .expect("Failed to get display handle.")
             .into();
         App {
             window: None,
-            vk_context: VkcContext::new(display_handle),
+            ctx: Context::new(display_handle),
         }
     }
 }
