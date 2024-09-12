@@ -1,22 +1,19 @@
-mod context;
+mod renderer;
+mod vk_loader;
 
-// Vkc = Vulkan custom -> Not provided by ash or Vulkan but implemented by me
-use context::Context;
-
+use renderer::Renderer;
+use vk_loader::Loader;
 use winit::application::ApplicationHandler;
-use winit::dpi::PhysicalSize;
 use winit::event::WindowEvent;
 use winit::event_loop::{ActiveEventLoop, ControlFlow, EventLoop};
 use winit::raw_window_handle::{HasDisplayHandle, RawDisplayHandle};
-use winit::window::{Window, WindowId};
+use winit::window::WindowId;
 
-const WIDTH: u32 = 800;
-const HEIGHT: u32 = 800;
-
-// Hold the application technical details
+// Holds the application technical details
+// Warning : Make sure the renderer drops before the loader => search "rust drop order"
 struct App {
-    window: Option<Window>,
-    ctx: Context,
+    renderer: Option<Renderer>,
+    loader: Loader,
 }
 
 impl App {
@@ -27,23 +24,15 @@ impl App {
             .expect("Failed to get display handle.")
             .into();
         App {
-            window: None,
-            ctx: Context::new(display_handle),
+            loader: Loader::new(display_handle),
+            renderer: None,
         }
     }
 }
 
 impl ApplicationHandler for App {
     fn resumed(&mut self, event_loop: &ActiveEventLoop) {
-        self.window = Some(
-            event_loop
-                .create_window(
-                    Window::default_attributes()
-                        .with_title("Vulkan project")
-                        .with_inner_size(PhysicalSize::new(WIDTH, HEIGHT)),
-                )
-                .expect("Failed to create window"),
-        );
+        self.renderer = Some(Renderer::new(event_loop, &self.loader));
     }
 
     fn window_event(&mut self, event_loop: &ActiveEventLoop, _id: WindowId, event: WindowEvent) {
@@ -65,7 +54,7 @@ impl ApplicationHandler for App {
                 // You only need to call this if you've determined that you need to redraw in
                 // applications which do not always need to. Applications that redraw continuously
                 // can render here instead.
-                self.window.as_ref().unwrap().request_redraw();
+                self.renderer.as_ref().unwrap().window.request_redraw();
             }
             _event => {
                 // println!("{:?}",_event);

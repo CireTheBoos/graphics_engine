@@ -1,0 +1,75 @@
+use ash::{
+    vk::{self, ApplicationInfo, InstanceCreateInfo},
+    Entry, Instance,
+};
+use std::ffi::{c_char, CStr};
+use winit::raw_window_handle::RawDisplayHandle;
+
+const LAYERS: [*const c_char; 1] = [c"VK_LAYER_KHRONOS_validation".as_ptr()];
+
+// entry is stored because it's dynamic/loaded (!= from static/linked).
+pub struct Loader {
+    pub entry: Entry,
+    pub instance: Instance,
+}
+
+impl Drop for Loader {
+    // destroy relying ressources first (devices)
+    fn drop(&mut self) {
+        unsafe {
+            self.instance.destroy_instance(None);
+        }
+    }
+}
+
+impl Loader {
+    pub fn new(display_handle: RawDisplayHandle) -> Loader {
+        let entry: Entry = unsafe { Entry::load().expect("Failed to load vulkan.") };
+        let instance = create_instance(&entry, display_handle);
+        Loader { entry, instance }
+    }
+}
+
+fn create_instance(entry: &Entry, display_handle: RawDisplayHandle) -> Instance {
+    // create application info
+    let application_info = ApplicationInfo::default()
+        .api_version(vk::make_api_version(0, 1, 3, 0))
+        .application_name(c"Vulkan test");
+
+    // select extensions
+    let extensions = ash_window::enumerate_required_extensions(display_handle)
+        .expect("Failed to get graphics extensions from display.");
+
+    // select layers
+    let mut layers: Vec<*const c_char> = Vec::new();
+    if cfg!(debug_assertions) {
+        if layer_available(LAYERS[0], &entry) {
+            layers.push(LAYERS[0]);
+        } else {
+            panic!("Some layers are unavailables.");
+        }
+    }
+
+    // create instance create info
+    let create_info = InstanceCreateInfo::default()
+        .application_info(&application_info)
+        .enabled_extension_names(extensions)
+        .enabled_layer_names(&layers);
+
+    // instantiate
+    unsafe {
+        entry
+            .create_instance(&create_info, None)
+            .expect("Failed to create instance.")
+    }
+}
+
+fn layer_available(layer: *const c_char, entry: &Entry) -> bool {
+    let layer = unsafe { CStr::from_ptr(layer) };
+
+    // get available layers from entry
+    let available_layers = unsafe { entry.enumerate_instance_layer_properties().unwrap() };
+    available_layers
+        .iter()
+        .any(|available_layer| *available_layer.layer_name_as_c_str().unwrap() == *layer)
+}
