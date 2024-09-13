@@ -10,10 +10,18 @@ use winit::raw_window_handle::{HasDisplayHandle, RawDisplayHandle};
 use winit::window::WindowId;
 
 // Holds the application technical details
-// Warning : Make sure the renderer drops before the loader => search "rust drop order"
 struct App {
     renderer: Option<Renderer>,
     loader: Loader,
+}
+
+// cleanup vulkan raw ptrs
+impl Drop for App {
+    fn drop(&mut self) {
+        if let Some(renderer) = &mut self.renderer {
+            renderer.destroy(&self.loader);
+        }
+    }
 }
 
 impl App {

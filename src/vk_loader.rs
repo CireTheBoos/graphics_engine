@@ -2,7 +2,10 @@ use ash::{
     vk::{self, ApplicationInfo, InstanceCreateInfo},
     Entry, Instance,
 };
-use std::ffi::{c_char, CStr};
+use std::{
+    ffi::{c_char, CStr},
+    ops::Deref,
+};
 use winit::raw_window_handle::RawDisplayHandle;
 
 const LAYERS: [*const c_char; 1] = [c"VK_LAYER_KHRONOS_validation".as_ptr()];
@@ -11,6 +14,13 @@ const LAYERS: [*const c_char; 1] = [c"VK_LAYER_KHRONOS_validation".as_ptr()];
 pub struct Loader {
     pub entry: Entry,
     pub instance: Instance,
+}
+
+impl Deref for Loader {
+    type Target = Instance;
+    fn deref(&self) -> &Self::Target {
+        &self.instance
+    }
 }
 
 impl Drop for Loader {
@@ -27,6 +37,10 @@ impl Loader {
         let entry: Entry = unsafe { Entry::load().expect("Failed to load vulkan.") };
         let instance = create_instance(&entry, display_handle);
         Loader { entry, instance }
+    }
+
+    pub fn surface_khr(&self) -> ash::khr::surface::Instance {
+        ash::khr::surface::Instance::new(&self.entry, &self.instance)
     }
 }
 
