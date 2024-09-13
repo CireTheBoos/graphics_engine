@@ -5,7 +5,7 @@ use ash::{
 };
 use std::ops::{Deref, DerefMut};
 
-use crate::vk_loader::Loader;
+use crate::instance::Instance;
 
 // Just a wrapper around ash device that holds families idx
 // Only for device with graphics
@@ -29,7 +29,7 @@ impl DerefMut for RendererDevice {
 
 impl RendererDevice {
     pub fn new(
-        instance: &Loader,
+        instance: &Instance,
         physical_device: &PhysicalDevice,
         surface: &SurfaceKHR,
     ) -> RendererDevice {

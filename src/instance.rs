@@ -1,6 +1,6 @@
 use ash::{
     vk::{self, ApplicationInfo, InstanceCreateInfo},
-    Entry, Instance,
+    Entry, Instance as AshInstance,
 };
 use std::{
     ffi::{c_char, CStr},
@@ -9,34 +9,33 @@ use std::{
 use winit::raw_window_handle::RawDisplayHandle;
 
 const LAYERS: [*const c_char; 1] = [c"VK_LAYER_KHRONOS_validation".as_ptr()];
+const _INSTANCE_EXTENSIONS: [*const c_char; 0] = [];
 
-// entry is stored because it's dynamic/loaded (!= from static/linked).
-pub struct Loader {
+// Wrapper around the ash instance : can provide specific instance types
+// (like the one for surfaceKHR or extension's one)
+pub struct Instance {
+    // entry is stored because it's dynamic/loaded (!= from static/linked)
+    // Could be linked, then there would be no entry field
     pub entry: Entry,
-    pub instance: Instance,
+    instance: AshInstance,
 }
 
-impl Deref for Loader {
-    type Target = Instance;
+impl Deref for Instance {
+    type Target = AshInstance;
     fn deref(&self) -> &Self::Target {
         &self.instance
     }
 }
 
-impl Drop for Loader {
-    // destroy relying ressources first (devices)
-    fn drop(&mut self) {
-        unsafe {
-            self.instance.destroy_instance(None);
-        }
-    }
-}
-
-impl Loader {
-    pub fn new(display_handle: RawDisplayHandle) -> Loader {
+impl Instance {
+    pub fn new(display_handle: RawDisplayHandle) -> Instance {
         let entry: Entry = unsafe { Entry::load().expect("Failed to load vulkan.") };
         let instance = create_instance(&entry, display_handle);
-        Loader { entry, instance }
+        Instance { entry, instance }
+    }
+
+    pub fn destroy(&mut self) {
+        unsafe { self.destroy_instance(None) };
     }
 
     pub fn surface_khr(&self) -> ash::khr::surface::Instance {
@@ -44,30 +43,32 @@ impl Loader {
     }
 }
 
-fn create_instance(entry: &Entry, display_handle: RawDisplayHandle) -> Instance {
+fn create_instance(entry: &Entry, display_handle: RawDisplayHandle) -> AshInstance {
     // create application info
     let application_info = ApplicationInfo::default()
         .api_version(vk::make_api_version(0, 1, 3, 0))
         .application_name(c"Vulkan test");
 
-    // select extensions
-    let extensions = ash_window::enumerate_required_extensions(display_handle)
+    // add extensions
+    let display_extensions = ash_window::enumerate_required_extensions(display_handle)
         .expect("Failed to get graphics extensions from display.");
+    let extensions = [display_extensions, &_INSTANCE_EXTENSIONS].concat();
 
-    // select layers
+    // add layers
     let mut layers: Vec<*const c_char> = Vec::new();
     if cfg!(debug_assertions) {
-        if layer_available(LAYERS[0], &entry) {
-            layers.push(LAYERS[0]);
-        } else {
-            panic!("Some layers are unavailables.");
+        layers.push(LAYERS[0]);
+    }
+    for layer in &layers {
+        if !layer_available(*layer, entry) {
+            panic!("Some layers are unavailable.");
         }
     }
 
     // create instance create info
     let create_info = InstanceCreateInfo::default()
         .application_info(&application_info)
-        .enabled_extension_names(extensions)
+        .enabled_extension_names(&extensions)
         .enabled_layer_names(&layers);
 
     // instantiate

@@ -1,6 +1,6 @@
 mod device;
 
-use crate::vk_loader::Loader;
+use crate::instance::Instance;
 use ash::vk::{PhysicalDevice, PhysicalDeviceType, Queue, QueueFlags, SurfaceKHR};
 use device::RendererDevice;
 use winit::{
@@ -23,7 +23,7 @@ pub struct Renderer {
 }
 
 impl Renderer {
-    pub fn new(event_loop: &ActiveEventLoop, instance: &Loader) -> Renderer {
+    pub fn new(event_loop: &ActiveEventLoop, instance: &Instance) -> Renderer {
         // Create window
         let window = event_loop
             .create_window(
@@ -59,7 +59,7 @@ impl Renderer {
         }
     }
 
-    pub fn destroy(&mut self, instance: &Loader) {
+    pub fn destroy(&mut self, instance: &Instance) {
         unsafe {
             instance.surface_khr().destroy_surface(self.surface, None);
             self.device.destroy_device(None);
@@ -67,7 +67,7 @@ impl Renderer {
     }
 }
 
-fn select_device(instance: &Loader, surface: &SurfaceKHR) -> RendererDevice {
+fn select_device(instance: &Instance, surface: &SurfaceKHR) -> RendererDevice {
     // enumerate physical devices
     let physical_device_list = unsafe {
         instance
@@ -90,7 +90,7 @@ fn select_device(instance: &Loader, surface: &SurfaceKHR) -> RendererDevice {
 
 // 0 means unsuitable
 fn score_suitability(
-    instance: &Loader,
+    instance: &Instance,
     physical_device: &PhysicalDevice,
     surface: &SurfaceKHR,
 ) -> u32 {

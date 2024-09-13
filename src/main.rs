@@ -1,8 +1,8 @@
+mod instance;
 mod renderer;
-mod vk_loader;
 
+use instance::Instance;
 use renderer::Renderer;
-use vk_loader::Loader;
 use winit::application::ApplicationHandler;
 use winit::event::WindowEvent;
 use winit::event_loop::{ActiveEventLoop, ControlFlow, EventLoop};
@@ -12,15 +12,16 @@ use winit::window::WindowId;
 // Holds the application technical details
 struct App {
     renderer: Option<Renderer>,
-    loader: Loader,
+    instance: Instance,
 }
 
 // cleanup vulkan raw ptrs
 impl Drop for App {
     fn drop(&mut self) {
         if let Some(renderer) = &mut self.renderer {
-            renderer.destroy(&self.loader);
+            renderer.destroy(&self.instance);
         }
+        self.instance.destroy();
     }
 }
 
@@ -32,7 +33,7 @@ impl App {
             .expect("Failed to get display handle.")
             .into();
         App {
-            loader: Loader::new(display_handle),
+            instance: Instance::new(display_handle),
             renderer: None,
         }
     }
@@ -40,7 +41,7 @@ impl App {
 
 impl ApplicationHandler for App {
     fn resumed(&mut self, event_loop: &ActiveEventLoop) {
-        self.renderer = Some(Renderer::new(event_loop, &self.loader));
+        self.renderer = Some(Renderer::new(event_loop, &self.instance));
     }
 
     fn window_event(&mut self, event_loop: &ActiveEventLoop, _id: WindowId, event: WindowEvent) {
@@ -73,12 +74,12 @@ impl ApplicationHandler for App {
 
 fn main() {
     // STEP 1. : Setup the event_loop to receive events from the OS and window
-    let event_loop = EventLoop::new().expect("Failed to create event_loop");
-    // ControlFlow::Poll continuously runs the event loop, even if the OS hasn't
-    // dispatched any events. This is ideal for games and similar applications.
+    let event_loop = EventLoop::new().expect("Failed to create event loop.");
     event_loop.set_control_flow(ControlFlow::Poll);
 
     // STEP 2. : Create App and run it with the event_loop
     let mut app = App::new(&event_loop);
-    event_loop.run_app(&mut app).expect("Failed to run the app");
+    event_loop
+        .run_app(&mut app)
+        .expect("Failed to run the app.");
 }
