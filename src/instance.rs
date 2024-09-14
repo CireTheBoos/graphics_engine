@@ -1,5 +1,5 @@
 use ash::{
-    vk::{self, ApplicationInfo, InstanceCreateInfo},
+    vk::{self, ApplicationInfo, InstanceCreateInfo, LayerProperties},
     Entry, Instance as AshInstance,
 };
 use std::{
@@ -61,8 +61,10 @@ fn create_instance(entry: &Entry, display_handle: RawDisplayHandle) -> AshInstan
     if cfg!(debug_assertions) {
         layers.push(LAYERS[0]);
     }
+    let available_layers = unsafe { entry.enumerate_instance_layer_properties() }
+        .expect("Failed to get available layers.");
     for layer in &layers {
-        if !layer_available(*layer, entry) {
+        if !is_layer_available(*layer, &available_layers) {
             panic!("Some layers are unavailable.");
         }
     }
@@ -81,11 +83,8 @@ fn create_instance(entry: &Entry, display_handle: RawDisplayHandle) -> AshInstan
     }
 }
 
-fn layer_available(layer: *const c_char, entry: &Entry) -> bool {
+fn is_layer_available(layer: *const c_char, available_layers: &Vec<LayerProperties>) -> bool {
     let layer = unsafe { CStr::from_ptr(layer) };
-
-    // get available layers from entry
-    let available_layers = unsafe { entry.enumerate_instance_layer_properties().unwrap() };
     available_layers
         .iter()
         .any(|available_layer| *available_layer.layer_name_as_c_str().unwrap() == *layer)

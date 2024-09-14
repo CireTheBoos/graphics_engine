@@ -13,6 +13,7 @@ use winit::raw_window_handle::{HasDisplayHandle, RawDisplayHandle};
 use winit::window::WindowId;
 
 // Holds the application technical details
+// Warning : "renderer" should drop before "instance", hence this fields order
 struct App {
     renderer: Option<Renderer>,
     instance: Instance,
@@ -73,9 +74,9 @@ fn main() {
     event_loop.set_control_flow(ControlFlow::Poll);
 
     // STEP 2. : Create App and run it with the event_loop
-    let mut app = App::new(&event_loop);
-    let pin = pin!(app);
+    let app = App::new(&event_loop);
+    let app = pin!(app);
     event_loop
-        .run_app(unsafe { pin.get_unchecked_mut() })
+        .run_app(unsafe { app.get_unchecked_mut() })
         .expect("Failed to run the app.");
 }
