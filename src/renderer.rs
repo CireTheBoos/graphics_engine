@@ -1,4 +1,5 @@
 mod device;
+mod swapchain;
 
 use std::{
     ffi::{c_char, CStr},
@@ -11,6 +12,7 @@ use ash::vk::{
     PresentModeKHR, Queue, QueueFlags, SurfaceCapabilitiesKHR, SurfaceFormatKHR, SurfaceKHR,
 };
 use device::RendererDevice;
+use swapchain::RendererSwapchain;
 use winit::{
     dpi::PhysicalSize,
     event_loop::ActiveEventLoop,
@@ -29,6 +31,7 @@ pub struct Renderer {
     pub window: Window,
     pub surface: SurfaceKHR,
     pub device: RendererDevice,
+    pub swapchain: RendererSwapchain,
     pub graphics_queue: Queue,
     pub present_queue: Queue,
 }
@@ -36,6 +39,9 @@ pub struct Renderer {
 impl Drop for Renderer {
     fn drop(&mut self) {
         unsafe {
+            self.device
+                .swapchain_khr(self.instance.as_ref())
+                .destroy_swapchain(*self.swapchain, None);
             self.instance
                 .as_ref()
                 .surface_khr()
@@ -72,17 +78,19 @@ impl Renderer {
         let infos = query_hardware(&instance, &surface);
 
         // Create device and queues
-        let device = RendererDevice::new(instance, &surface, infos);
+        let device = RendererDevice::new(instance, infos);
         let graphics_queue = unsafe { device.get_device_queue(device.graphics_idx, 0) };
         let present_queue = unsafe { device.get_device_queue(device.present_idx, 0) };
 
-        // TODO : create swapchain
+        // Create swapchain
+        let swapchain = RendererSwapchain::new(&device.swapchain_khr(instance), &surface, infos);
 
         Renderer {
             instance: NonNull::from(instance),
             window,
             surface,
             device,
+            swapchain,
             graphics_queue,
             present_queue,
         }
@@ -113,9 +121,11 @@ fn query_hardware(instance: &Instance, surface: &SurfaceKHR) -> PhysicalDeviceIn
         .unwrap()
 }
 
+#[derive(Clone, Copy)]
 pub struct PhysicalDeviceInfos {
     physical_device: PhysicalDevice,
     score: u32,
+    capabilities: SurfaceCapabilitiesKHR,
     extent: Extent2D,
     format: SurfaceFormatKHR,
     present_mode: PresentModeKHR,
@@ -216,6 +226,7 @@ fn query_physical_device(
     Ok(PhysicalDeviceInfos {
         physical_device,
         score,
+        capabilities,
         extent,
         format,
         present_mode,

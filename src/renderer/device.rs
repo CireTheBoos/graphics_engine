@@ -1,10 +1,9 @@
-use ash::vk::SurfaceKHR;
 use ash::{vk, Device as AshDevice};
 use std::ops::{Deref, DerefMut};
 
 use crate::instance::Instance;
 
-use super::PhysicalDeviceInfos;
+use super::{PhysicalDeviceInfos, EXTENSIONS};
 
 // Just a wrapper around ash device that holds families idx
 // Only for device with graphics
@@ -27,12 +26,8 @@ impl DerefMut for RendererDevice {
 }
 
 impl RendererDevice {
-    pub fn new(
-        instance: &Instance,
-        surface: &SurfaceKHR,
-        infos: PhysicalDeviceInfos,
-    ) -> RendererDevice {
-        // construct queue families infos (just one queue on graphics here)
+    pub fn new(instance: &Instance, infos: PhysicalDeviceInfos) -> RendererDevice {
+        // construct queue families infos
         let graphics_info = vk::DeviceQueueCreateInfo::default()
             .queue_family_index(infos.graphics_idx)
             .queue_priorities(&[0.5]);
@@ -45,7 +40,8 @@ impl RendererDevice {
             vec![graphics_info]
         };
 
-        // select extension (TODO)
+        // select extensions
+        let extensions = EXTENSIONS;
 
         // select features (none here)
         let features = vk::PhysicalDeviceFeatures::default();
@@ -53,6 +49,7 @@ impl RendererDevice {
         // create device info
         let create_info = vk::DeviceCreateInfo::default()
             .enabled_features(&features)
+            .enabled_extension_names(&extensions)
             .queue_create_infos(&families_info);
 
         // instantiate device
@@ -62,12 +59,14 @@ impl RendererDevice {
                 .expect("Failed to create device.")
         };
 
-        // create swapchain (TODO)
-
         RendererDevice {
             device,
             graphics_idx: infos.graphics_idx,
             present_idx: infos.present_idx,
         }
+    }
+
+    pub fn swapchain_khr(&self, instance: &Instance) -> ash::khr::swapchain::Device {
+        ash::khr::swapchain::Device::new(instance, &self)
     }
 }

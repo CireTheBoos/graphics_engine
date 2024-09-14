@@ -1,12 +1,17 @@
-use crate::instance::Instance;
 use std::ops::{Deref, DerefMut};
 
-use ash::vk::{Extent2D, Format, PhysicalDevice, PresentModeKHR, SurfaceKHR, SwapchainKHR};
+use ash::{
+    khr::swapchain::Device as SwapChainDevice,
+    vk::{
+        CompositeAlphaFlagsKHR, ImageUsageFlags, SharingMode, SurfaceKHR, SwapchainCreateInfoKHR,
+        SwapchainKHR,
+    },
+};
 
-use super::device::RendererDevice;
+use super::PhysicalDeviceInfos;
 
 pub struct RendererSwapchain {
-    pub swapchain: SwapchainKHR,
+    swapchain: SwapchainKHR,
 }
 
 impl Deref for RendererSwapchain {
@@ -23,15 +28,45 @@ impl DerefMut for RendererSwapchain {
 
 impl RendererSwapchain {
     pub fn new(
-        instance: &Instance,
-        pĥysical_device: &PhysicalDevice,
+        device: &SwapChainDevice,
         surface: &SurfaceKHR,
+        infos: PhysicalDeviceInfos,
     ) -> RendererSwapchain {
-        let available_formats = unsafe {
-            instance
-                .surface_khr()
-                .get_physical_device_surface_formats(*physical_device, *surface)
-                .unwrap()
-        };
+        // setup the image count (+1 above the min if we can)
+        let min_image_count =
+            if infos.capabilities.min_image_count == infos.capabilities.max_image_count {
+                infos.capabilities.min_image_count
+            } else {
+                infos.capabilities.min_image_count + 1
+            };
+
+        // create swapchain info
+        let mut create_info = SwapchainCreateInfoKHR::default()
+            .surface(*surface)
+            .min_image_count(min_image_count)
+            .image_format(infos.format.format)
+            .image_color_space(infos.format.color_space)
+            .image_extent(infos.extent)
+            .image_array_layers(1)
+            .present_mode(infos.present_mode)
+            .image_usage(ImageUsageFlags::COLOR_ATTACHMENT)
+            .pre_transform(infos.capabilities.current_transform)
+            .composite_alpha(CompositeAlphaFlagsKHR::OPAQUE)
+            .clipped(true)
+            .old_swapchain(SwapchainKHR::null());
+
+        let queues = [infos.graphics_idx, infos.present_idx];
+        if infos.graphics_idx != infos.present_idx {
+            create_info = create_info
+                .image_sharing_mode(SharingMode::CONCURRENT)
+                .queue_family_indices(&queues);
+        } else {
+            create_info = create_info.image_sharing_mode(SharingMode::EXCLUSIVE)
+        }
+
+        let swapchain = unsafe { device.create_swapchain(&create_info, None) }
+            .expect("Failed to create swapchain.");
+
+        RendererSwapchain { swapchain }
     }
 }
