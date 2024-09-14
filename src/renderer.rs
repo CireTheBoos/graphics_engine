@@ -1,5 +1,7 @@
 mod device;
 
+use std::ptr::NonNull;
+
 use crate::instance::Instance;
 use ash::vk::{PhysicalDevice, PhysicalDeviceType, Queue, QueueFlags, SurfaceKHR};
 use device::RendererDevice;
@@ -15,11 +17,24 @@ const HEIGHT: u32 = 800;
 
 // entry is stored because it's dynamic/loaded (!= from static/linked).
 pub struct Renderer {
+    instance: NonNull<Instance>,
     pub window: Window,
     pub surface: SurfaceKHR,
     pub device: RendererDevice,
     pub graphics_queue: Queue,
     pub present_queue: Queue,
+}
+
+impl Drop for Renderer {
+    fn drop(&mut self) {
+        unsafe {
+            self.instance
+                .as_ref()
+                .surface_khr()
+                .destroy_surface(self.surface, None);
+            self.device.destroy_device(None);
+        }
+    }
 }
 
 impl Renderer {
@@ -51,18 +66,12 @@ impl Renderer {
         let present_queue = unsafe { device.get_device_queue(device.present_idx, 0) };
 
         Renderer {
+            instance: NonNull::from(instance),
             window,
             surface,
             device,
             graphics_queue,
             present_queue,
-        }
-    }
-
-    pub fn destroy(&mut self, instance: &Instance) {
-        unsafe {
-            instance.surface_khr().destroy_surface(self.surface, None);
-            self.device.destroy_device(None);
         }
     }
 }

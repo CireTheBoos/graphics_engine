@@ -27,15 +27,17 @@ impl Deref for Instance {
     }
 }
 
+impl Drop for Instance {
+    fn drop(&mut self) {
+        unsafe { self.destroy_instance(None) };
+    }
+}
+
 impl Instance {
     pub fn new(display_handle: RawDisplayHandle) -> Instance {
         let entry: Entry = unsafe { Entry::load().expect("Failed to load vulkan.") };
         let instance = create_instance(&entry, display_handle);
         Instance { entry, instance }
-    }
-
-    pub fn destroy(&mut self) {
-        unsafe { self.destroy_instance(None) };
     }
 
     pub fn surface_khr(&self) -> ash::khr::surface::Instance {

@@ -1,6 +1,9 @@
 mod instance;
 mod renderer;
 
+use std::marker::PhantomPinned;
+use std::pin::pin;
+
 use instance::Instance;
 use renderer::Renderer;
 use winit::application::ApplicationHandler;
@@ -13,16 +16,7 @@ use winit::window::WindowId;
 struct App {
     renderer: Option<Renderer>,
     instance: Instance,
-}
-
-// cleanup vulkan raw ptrs
-impl Drop for App {
-    fn drop(&mut self) {
-        if let Some(renderer) = &mut self.renderer {
-            renderer.destroy(&self.instance);
-        }
-        self.instance.destroy();
-    }
+    _pin: PhantomPinned,
 }
 
 impl App {
@@ -33,6 +27,7 @@ impl App {
             .expect("Failed to get display handle.")
             .into();
         App {
+            _pin: PhantomPinned,
             instance: Instance::new(display_handle),
             renderer: None,
         }
@@ -79,7 +74,8 @@ fn main() {
 
     // STEP 2. : Create App and run it with the event_loop
     let mut app = App::new(&event_loop);
+    let pin = pin!(app);
     event_loop
-        .run_app(&mut app)
+        .run_app(unsafe { pin.get_unchecked_mut() })
         .expect("Failed to run the app.");
 }
