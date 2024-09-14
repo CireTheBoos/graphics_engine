@@ -7,8 +7,8 @@ use std::{
 
 use crate::instance::Instance;
 use ash::vk::{
-    ExtensionProperties, PhysicalDevice, PhysicalDeviceType, PresentModeKHR, Queue, QueueFlags,
-    SurfaceCapabilitiesKHR, SurfaceFormatKHR, SurfaceKHR,
+    ColorSpaceKHR, ExtensionProperties, Extent2D, Format, PhysicalDevice, PhysicalDeviceType,
+    PresentModeKHR, Queue, QueueFlags, SurfaceCapabilitiesKHR, SurfaceFormatKHR, SurfaceKHR,
 };
 use device::RendererDevice;
 use winit::{
@@ -116,7 +116,7 @@ fn query_hardware(instance: &Instance, surface: &SurfaceKHR) -> PhysicalDeviceIn
 pub struct PhysicalDeviceInfos {
     physical_device: PhysicalDevice,
     score: u32,
-    capabilities: SurfaceCapabilitiesKHR,
+    extent: Extent2D,
     format: SurfaceFormatKHR,
     present_mode: PresentModeKHR,
     graphics_idx: u32,
@@ -171,19 +171,19 @@ fn query_physical_device(
             .get_physical_device_surface_capabilities(physical_device, *surface)
     }
     .unwrap();
-    let formats = unsafe {
+    let available_formats = unsafe {
         instance
             .surface_khr()
             .get_physical_device_surface_formats(physical_device, *surface)
     }
     .unwrap();
-    let present_modes = unsafe {
+    let available_present_modes = unsafe {
         instance
             .surface_khr()
             .get_physical_device_surface_present_modes(physical_device, *surface)
     }
     .unwrap();
-    if formats.is_empty() || present_modes.is_empty() {
+    if available_formats.is_empty() || available_present_modes.is_empty() {
         return Err(());
     }
 
@@ -204,15 +204,19 @@ fn query_physical_device(
     }
 
     // SRGB_8 format is prefered (todo)
-    let format = formats[0];
+    let (format, format_score) = choose_best_format(&available_formats);
+    score += format_score;
 
     // Choose FIFO mode (todo)
-    let present_mode = present_modes[0];
+    let (present_mode, present_mode_score) = choose_best_present_mode(&available_present_modes);
+    score += present_mode_score;
+
+    let extent = choose_best_extent(&capabilities);
 
     Ok(PhysicalDeviceInfos {
         physical_device,
         score,
-        capabilities,
+        extent,
         format,
         present_mode,
         graphics_idx,
@@ -228,4 +232,52 @@ fn is_extension_available(
     available_extensions.iter().any(|available_extension| {
         *available_extension.extension_name_as_c_str().unwrap() == *extension
     })
+}
+
+fn choose_best_format(available_formats: &Vec<SurfaceFormatKHR>) -> (SurfaceFormatKHR, u32) {
+    // filter available formats based on match : pattern => score
+    // keep the first one in case no format match
+    // then pick the highest score
+    available_formats
+        .iter()
+        .enumerate()
+        .filter_map(|(idx, format)| {
+            if idx == 0 {
+                return Some((*format, 0));
+            }
+            // Here's the scoring
+            match (format.format, format.color_space) {
+                (Format::B8G8R8A8_SRGB, ColorSpaceKHR::SRGB_NONLINEAR) => Some((*format, 10)),
+                _ => None,
+            }
+        })
+        .max_by_key(|(_, score)| *score)
+        .unwrap()
+}
+
+fn choose_best_present_mode(
+    available_present_modes: &Vec<PresentModeKHR>,
+) -> (PresentModeKHR, u32) {
+    // filter available present modes based on match : pattern => score
+    // keep the first one in case no present mode match
+    // then pick the highest score
+    available_present_modes
+        .iter()
+        .enumerate()
+        .filter_map(|(idx, present_mode)| {
+            if idx == 0 {
+                return Some((*present_mode, 0));
+            }
+            // Here's the scoring
+            match *present_mode {
+                PresentModeKHR::FIFO => Some((*present_mode, 10)),
+                _ => None,
+            }
+        })
+        .max_by_key(|(_, score)| *score)
+        .unwrap()
+}
+
+fn choose_best_extent(capabilities: &SurfaceCapabilitiesKHR) -> Extent2D {
+    capabilities.current_extent
 }

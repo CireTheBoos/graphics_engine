@@ -45,6 +45,8 @@ impl RendererDevice {
             vec![graphics_info]
         };
 
+        // select extension (TODO)
+
         // select features (none here)
         let features = vk::PhysicalDeviceFeatures::default();
 
@@ -59,6 +61,9 @@ impl RendererDevice {
                 .create_device(infos.physical_device, &create_info, None)
                 .expect("Failed to create device.")
         };
+
+        // create swapchain (TODO)
+
         RendererDevice {
             device,
             graphics_idx: infos.graphics_idx,
