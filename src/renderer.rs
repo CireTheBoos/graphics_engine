@@ -8,8 +8,9 @@ use std::{
 
 use crate::instance::Instance;
 use ash::vk::{
-    ColorSpaceKHR, ExtensionProperties, Extent2D, Format, PhysicalDevice, PhysicalDeviceType,
-    PresentModeKHR, Queue, QueueFlags, SurfaceCapabilitiesKHR, SurfaceFormatKHR, SurfaceKHR,
+    ColorSpaceKHR, ExtensionProperties, Extent2D, Format, ImageView, PhysicalDevice,
+    PhysicalDeviceType, PresentModeKHR, Queue, QueueFlags, SurfaceCapabilitiesKHR,
+    SurfaceFormatKHR, SurfaceKHR,
 };
 use device::RendererDevice;
 use swapchain::RendererSwapchain;
@@ -32,6 +33,7 @@ pub struct Renderer {
     pub surface: SurfaceKHR,
     pub device: RendererDevice,
     pub swapchain: RendererSwapchain,
+    pub image_views: Vec<ImageView>,
     pub graphics_queue: Queue,
     pub present_queue: Queue,
 }
@@ -39,6 +41,9 @@ pub struct Renderer {
 impl Drop for Renderer {
     fn drop(&mut self) {
         unsafe {
+            for image_view in &self.image_views {
+                self.device.destroy_image_view(*image_view, None);
+            }
             self.device
                 .swapchain_khr(self.instance.as_ref())
                 .destroy_swapchain(*self.swapchain, None);
@@ -85,12 +90,15 @@ impl Renderer {
         // Create swapchain
         let swapchain = RendererSwapchain::new(&device.swapchain_khr(instance), &surface, infos);
 
+        let image_views = swapchain.get_image_views(&device);
+
         Renderer {
             instance: NonNull::from(instance),
             window,
             surface,
             device,
             swapchain,
+            image_views,
             graphics_queue,
             present_queue,
         }

@@ -3,15 +3,20 @@ use std::ops::{Deref, DerefMut};
 use ash::{
     khr::swapchain::Device as SwapChainDevice,
     vk::{
-        CompositeAlphaFlagsKHR, ImageUsageFlags, SharingMode, SurfaceKHR, SwapchainCreateInfoKHR,
-        SwapchainKHR,
+        ComponentMapping, ComponentSwizzle, CompositeAlphaFlagsKHR, Extent2D, Format, Image,
+        ImageAspectFlags, ImageSubresourceRange, ImageUsageFlags, ImageView, ImageViewCreateInfo,
+        ImageViewType, SharingMode, SurfaceKHR, SwapchainCreateInfoKHR, SwapchainKHR,
     },
+    Device as AshDevice,
 };
 
 use super::PhysicalDeviceInfos;
 
 pub struct RendererSwapchain {
     swapchain: SwapchainKHR,
+    pub format: Format,
+    pub extent: Extent2D,
+    images: Vec<Image>,
 }
 
 impl Deref for RendererSwapchain {
@@ -67,6 +72,44 @@ impl RendererSwapchain {
         let swapchain = unsafe { device.create_swapchain(&create_info, None) }
             .expect("Failed to create swapchain.");
 
-        RendererSwapchain { swapchain }
+        let images =
+            unsafe { device.get_swapchain_images(swapchain) }.expect("Failed to extract images.");
+
+        RendererSwapchain {
+            swapchain,
+            format: infos.format.format,
+            extent: infos.extent,
+            images,
+        }
+    }
+
+    pub fn get_image_views(&self, device: &AshDevice) -> Vec<ImageView> {
+        self.images
+            .iter()
+            .map(|image| {
+                let components = ComponentMapping::default()
+                    .a(ComponentSwizzle::IDENTITY)
+                    .r(ComponentSwizzle::IDENTITY)
+                    .g(ComponentSwizzle::IDENTITY)
+                    .b(ComponentSwizzle::IDENTITY);
+
+                let subresource_range = ImageSubresourceRange::default()
+                    .aspect_mask(ImageAspectFlags::COLOR)
+                    .base_mip_level(0)
+                    .level_count(1)
+                    .base_array_layer(0)
+                    .layer_count(1);
+
+                let create_info = ImageViewCreateInfo::default()
+                    .view_type(ImageViewType::TYPE_2D)
+                    .image(*image)
+                    .format(self.format)
+                    .components(components)
+                    .subresource_range(subresource_range);
+
+                unsafe { device.create_image_view(&create_info, None) }
+                    .expect("Failed to create image view.")
+            })
+            .collect()
     }
 }
