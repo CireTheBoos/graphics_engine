@@ -43,13 +43,13 @@ impl RendererDevice {
     pub fn new(instance: &Instance, surface: &SurfaceKHR) -> (RendererDevice, PhysicalDeviceInfos) {
         let physical_device_infos = select_physical_device(instance, surface);
         let device = create_device(instance, physical_device_infos);
-        let device = RendererDevice {
+        let renderer_device = RendererDevice {
             instance: NonNull::from(instance),
             device,
             graphics_idx: physical_device_infos.graphics_idx,
             present_idx: physical_device_infos.present_idx,
         };
-        (device, physical_device_infos)
+        (renderer_device, physical_device_infos)
     }
 
     pub fn swapchain_khr(&self) -> ash::khr::swapchain::Device {
@@ -93,12 +93,13 @@ fn create_device(instance: &Instance, infos: PhysicalDeviceInfos) -> AshDevice {
 pub struct PhysicalDeviceInfos {
     physical_device: PhysicalDevice,
     score: u32,
+    graphics_idx: u32,
+    present_idx: u32,
+    // swapchain infos
     pub capabilities: SurfaceCapabilitiesKHR,
     pub extent: Extent2D,
     pub format: SurfaceFormatKHR,
     pub present_mode: PresentModeKHR,
-    pub graphics_idx: u32,
-    pub present_idx: u32,
 }
 
 fn select_physical_device(instance: &Instance, surface: &SurfaceKHR) -> PhysicalDeviceInfos {

@@ -7,26 +7,16 @@ use device::RendererDevice;
 use swapchain::RendererSwapchain;
 
 use std::ptr::NonNull;
-use winit::{
-    dpi::PhysicalSize,
-    event_loop::ActiveEventLoop,
-    raw_window_handle::{HasDisplayHandle, HasWindowHandle},
-    window::Window,
-};
 
-const WIDTH: u32 = 800;
-const HEIGHT: u32 = 800;
-
-// Render images on screen from model data
+// Render images on screen from model data to a given surface
 pub struct Renderer {
     instance: NonNull<Instance>,
-    pub window: Window,
-    pub surface: SurfaceKHR,
-    pub device: RendererDevice,
-    pub swapchain: RendererSwapchain,
-    pub image_views: Vec<ImageView>,
-    pub graphics_queue: Queue,
-    pub present_queue: Queue,
+    surface: SurfaceKHR,
+    device: RendererDevice,
+    swapchain: RendererSwapchain,
+    image_views: Vec<ImageView>,
+    graphics_queue: Queue,
+    present_queue: Queue,
 }
 
 // Destroy views, swapchain, surface (order matters)
@@ -48,28 +38,7 @@ impl Drop for Renderer {
 }
 
 impl Renderer {
-    pub fn new(event_loop: &ActiveEventLoop, instance: &Instance) -> Renderer {
-        // Create window
-        let window = event_loop
-            .create_window(
-                Window::default_attributes()
-                    .with_title("Vulkan project")
-                    .with_inner_size(PhysicalSize::new(WIDTH, HEIGHT)),
-            )
-            .expect("Failed to create window");
-
-        // Create surface
-        let surface = unsafe {
-            ash_window::create_surface(
-                instance.entry(),
-                &instance,
-                window.display_handle().unwrap().into(),
-                window.window_handle().unwrap().into(),
-                None,
-            )
-            .expect("Failed to create surface.")
-        };
-
+    pub fn new(instance: &Instance, surface: SurfaceKHR) -> Renderer {
         // Create device and queues
         let (device, infos) = RendererDevice::new(instance, &surface);
         let graphics_queue = unsafe { device.get_device_queue(device.graphics_idx, 0) };
@@ -78,11 +47,11 @@ impl Renderer {
         // Create swapchain
         let swapchain = RendererSwapchain::new(&device, &surface, infos);
 
+        // Create views
         let image_views = swapchain.get_image_views(&device);
 
         Renderer {
             instance: NonNull::from(instance),
-            window,
             surface,
             device,
             swapchain,

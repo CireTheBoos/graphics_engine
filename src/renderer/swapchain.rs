@@ -1,4 +1,4 @@
-use std::ops::{Deref, DerefMut};
+use std::ops::Deref;
 
 use ash::{
     vk::{
@@ -18,15 +18,11 @@ pub struct RendererSwapchain {
     images: Vec<Image>,
 }
 
+// Deref to ash::vk::SwapchainKHR
 impl Deref for RendererSwapchain {
     type Target = SwapchainKHR;
     fn deref(&self) -> &Self::Target {
         &self.swapchain
-    }
-}
-impl DerefMut for RendererSwapchain {
-    fn deref_mut(&mut self) -> &mut Self::Target {
-        &mut self.swapchain
     }
 }
 
@@ -36,7 +32,7 @@ impl RendererSwapchain {
         surface: &SurfaceKHR,
         infos: PhysicalDeviceInfos,
     ) -> RendererSwapchain {
-        // setup the image count (+1 above the min if we can)
+        // SPECIFY : minimum image count (+1 above min if possible)
         let min_image_count =
             if infos.capabilities.min_image_count == infos.capabilities.max_image_count {
                 infos.capabilities.min_image_count
@@ -44,7 +40,7 @@ impl RendererSwapchain {
                 infos.capabilities.min_image_count + 1
             };
 
-        // create swapchain info
+        // SPECIFY : a bunch of things
         let mut create_info = SwapchainCreateInfoKHR::default()
             .surface(*surface)
             .min_image_count(min_image_count)
@@ -59,8 +55,9 @@ impl RendererSwapchain {
             .clipped(true)
             .old_swapchain(SwapchainKHR::null());
 
-        let queues = [infos.graphics_idx, infos.present_idx];
-        if infos.graphics_idx != infos.present_idx {
+        // SPECIFY : queues sharing mode
+        let queues = [device.graphics_idx, device.present_idx];
+        if device.graphics_idx != device.present_idx {
             create_info = create_info
                 .image_sharing_mode(SharingMode::CONCURRENT)
                 .queue_family_indices(&queues);
@@ -68,9 +65,11 @@ impl RendererSwapchain {
             create_info = create_info.image_sharing_mode(SharingMode::EXCLUSIVE)
         }
 
+        // CREATE : swapchain
         let swapchain = unsafe { device.swapchain_khr().create_swapchain(&create_info, None) }
             .expect("Failed to create swapchain.");
 
+        // CREATE : images
         let images = unsafe { device.swapchain_khr().get_swapchain_images(swapchain) }
             .expect("Failed to extract images.");
 

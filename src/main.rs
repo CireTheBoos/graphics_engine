@@ -7,16 +7,21 @@ use renderer::Renderer;
 use std::{marker::PhantomPinned, pin::pin};
 use winit::{
     application::ApplicationHandler,
+    dpi::PhysicalSize,
     event::WindowEvent,
     event_loop::{ActiveEventLoop, ControlFlow, EventLoop},
-    raw_window_handle::{HasDisplayHandle, RawDisplayHandle},
-    window::WindowId,
+    raw_window_handle::{HasDisplayHandle, HasWindowHandle, RawDisplayHandle},
+    window::{Window, WindowId},
 };
+
+const WIDTH: u32 = 600;
+const HEIGHT: u32 = 600;
 
 // Holds application's technical details
 // Warning : "renderer" should drop before "instance", hence this field order
 struct App {
     renderer: Option<Renderer>,
+    window: Option<Window>,
     instance: Instance,
     _pin: PhantomPinned,
 }
@@ -29,16 +34,43 @@ impl App {
             .expect("Failed to get display handle.")
             .into();
         App {
-            _pin: PhantomPinned,
-            instance: Instance::new(raw_display_handle),
             renderer: None,
+            window: None,
+            instance: Instance::new(raw_display_handle),
+            _pin: PhantomPinned,
         }
     }
 }
 
 impl ApplicationHandler for App {
     fn resumed(&mut self, event_loop: &ActiveEventLoop) {
-        self.renderer = Some(Renderer::new(event_loop, &self.instance));
+        // Create window
+        let window = event_loop
+            .create_window(
+                Window::default_attributes()
+                    .with_title("Vulkan project")
+                    .with_inner_size(PhysicalSize::new(WIDTH, HEIGHT)),
+            )
+            .expect("Failed to create window.");
+
+        // Create surface on it
+        let surface = unsafe {
+            ash_window::create_surface(
+                self.instance.entry(),
+                &self.instance,
+                window.display_handle().unwrap().into(),
+                window.window_handle().unwrap().into(),
+                None,
+            )
+            .expect("Failed to create surface.")
+        };
+
+        // Create renderer for this surface
+        let renderer = Renderer::new(&self.instance, surface);
+
+        // Store window and renderer
+        self.window = Some(window);
+        self.renderer = Some(renderer);
     }
 
     fn window_event(&mut self, event_loop: &ActiveEventLoop, _id: WindowId, event: WindowEvent) {
@@ -60,7 +92,7 @@ impl ApplicationHandler for App {
                 // You only need to call this if you've determined that you need to redraw in
                 // applications which do not always need to. Applications that redraw continuously
                 // can render here instead.
-                self.renderer.as_ref().unwrap().window.request_redraw();
+                self.window.as_ref().unwrap().request_redraw();
             }
             _event => {
                 // println!("{:?}",_event);
