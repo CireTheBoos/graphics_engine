@@ -1,9 +1,11 @@
 mod device;
+mod pipeline;
 mod swapchain;
 
 use crate::instance::Instance;
 use ash::vk::{ImageView, Queue, SurfaceKHR};
 use device::RendererDevice;
+use pipeline::RendererPipeline;
 use swapchain::RendererSwapchain;
 
 use std::ptr::NonNull;
@@ -17,6 +19,7 @@ pub struct Renderer {
     image_views: Vec<ImageView>,
     graphics_queue: Queue,
     present_queue: Queue,
+    pipeline: RendererPipeline,
 }
 
 // Destroy views, swapchain, surface (order matters)
@@ -50,6 +53,9 @@ impl Renderer {
         // Create views
         let image_views = swapchain.get_image_views(&device);
 
+        // Create pipeline
+        let pipeline = RendererPipeline::new();
+
         Renderer {
             instance: NonNull::from(instance),
             surface,
@@ -58,6 +64,7 @@ impl Renderer {
             image_views,
             graphics_queue,
             present_queue,
+            pipeline,
         }
     }
 }
