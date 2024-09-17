@@ -1,5 +1,6 @@
 mod device;
 mod pipeline;
+mod shaders;
 mod swapchain;
 
 use crate::instance::Instance;
