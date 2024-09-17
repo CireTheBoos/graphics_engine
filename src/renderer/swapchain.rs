@@ -1,7 +1,6 @@
 use std::ops::{Deref, DerefMut};
 
 use ash::{
-    khr::swapchain::Device as SwapChainDevice,
     vk::{
         ComponentMapping, ComponentSwizzle, CompositeAlphaFlagsKHR, Extent2D, Format, Image,
         ImageAspectFlags, ImageSubresourceRange, ImageUsageFlags, ImageView, ImageViewCreateInfo,
@@ -10,7 +9,7 @@ use ash::{
     Device as AshDevice,
 };
 
-use super::PhysicalDeviceInfos;
+use super::device::{PhysicalDeviceInfos, RendererDevice};
 
 pub struct RendererSwapchain {
     swapchain: SwapchainKHR,
@@ -33,7 +32,7 @@ impl DerefMut for RendererSwapchain {
 
 impl RendererSwapchain {
     pub fn new(
-        device: &SwapChainDevice,
+        device: &RendererDevice,
         surface: &SurfaceKHR,
         infos: PhysicalDeviceInfos,
     ) -> RendererSwapchain {
@@ -69,11 +68,11 @@ impl RendererSwapchain {
             create_info = create_info.image_sharing_mode(SharingMode::EXCLUSIVE)
         }
 
-        let swapchain = unsafe { device.create_swapchain(&create_info, None) }
+        let swapchain = unsafe { device.swapchain_khr().create_swapchain(&create_info, None) }
             .expect("Failed to create swapchain.");
 
-        let images =
-            unsafe { device.get_swapchain_images(swapchain) }.expect("Failed to extract images.");
+        let images = unsafe { device.swapchain_khr().get_swapchain_images(swapchain) }
+            .expect("Failed to extract images.");
 
         RendererSwapchain {
             swapchain,

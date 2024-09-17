@@ -1,19 +1,20 @@
 mod instance;
 mod renderer;
 
-use std::marker::PhantomPinned;
-use std::pin::pin;
-
 use instance::Instance;
 use renderer::Renderer;
-use winit::application::ApplicationHandler;
-use winit::event::WindowEvent;
-use winit::event_loop::{ActiveEventLoop, ControlFlow, EventLoop};
-use winit::raw_window_handle::{HasDisplayHandle, RawDisplayHandle};
-use winit::window::WindowId;
 
-// Holds the application technical details
-// Warning : "renderer" should drop before "instance", hence this fields order
+use std::{marker::PhantomPinned, pin::pin};
+use winit::{
+    application::ApplicationHandler,
+    event::WindowEvent,
+    event_loop::{ActiveEventLoop, ControlFlow, EventLoop},
+    raw_window_handle::{HasDisplayHandle, RawDisplayHandle},
+    window::WindowId,
+};
+
+// Holds application's technical details
+// Warning : "renderer" should drop before "instance", hence this field order
 struct App {
     renderer: Option<Renderer>,
     instance: Instance,
@@ -22,14 +23,14 @@ struct App {
 
 impl App {
     fn new(event_loop: &EventLoop<()>) -> App {
-        let display_handle: RawDisplayHandle = event_loop
+        let raw_display_handle: RawDisplayHandle = event_loop
             .owned_display_handle()
             .display_handle()
             .expect("Failed to get display handle.")
             .into();
         App {
             _pin: PhantomPinned,
-            instance: Instance::new(display_handle),
+            instance: Instance::new(raw_display_handle),
             renderer: None,
         }
     }
@@ -74,6 +75,7 @@ fn main() {
     event_loop.set_control_flow(ControlFlow::Poll);
 
     // STEP 2. : Create App and run it with the event_loop
+    // safe bc run_app() don't move "app" with the &mut given, so pinning hold
     let app = App::new(&event_loop);
     let app = pin!(app);
     event_loop
