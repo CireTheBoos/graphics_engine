@@ -31,6 +31,8 @@ impl Drop for Renderer {
                 self.device.destroy_image_view(*image_view, None);
             }
             self.device
+                .destroy_pipeline_layout(self.pipeline.layout, None);
+            self.device
                 .swapchain_khr()
                 .destroy_swapchain(*self.swapchain, None);
             self.instance
@@ -55,7 +57,7 @@ impl Renderer {
         let image_views = swapchain.get_image_views(&device);
 
         // Create pipeline
-        let pipeline = RendererPipeline::new(&device);
+        let pipeline = RendererPipeline::new(&device, &swapchain.extent);
 
         Renderer {
             instance: NonNull::from(instance),
