@@ -2,6 +2,7 @@ mod instance;
 mod renderer;
 mod shaders;
 
+use ash::vk::SurfaceKHR;
 use instance::Instance;
 use renderer::Renderer;
 
@@ -18,8 +19,7 @@ use winit::{
 const WIDTH: u32 = 600;
 const HEIGHT: u32 = 600;
 
-// Holds application's technical details
-// Warning : "renderer" should drop before "instance", hence this field order
+// Setup loop and handle events
 struct App {
     renderer: Option<Renderer>,
     window: Option<Window>,
@@ -45,31 +45,10 @@ impl App {
 
 impl ApplicationHandler for App {
     fn resumed(&mut self, event_loop: &ActiveEventLoop) {
-        // Create window
-        let window = event_loop
-            .create_window(
-                Window::default_attributes()
-                    .with_title("Vulkan project")
-                    .with_inner_size(PhysicalSize::new(WIDTH, HEIGHT)),
-            )
-            .expect("Failed to create window.");
-
-        // Create surface on it
-        let surface = unsafe {
-            ash_window::create_surface(
-                self.instance.entry(),
-                &self.instance,
-                window.display_handle().unwrap().into(),
-                window.window_handle().unwrap().into(),
-                None,
-            )
-            .expect("Failed to create surface.")
-        };
-
-        // Create renderer for this surface
+        let window = create_window(event_loop);
+        let surface = create_surface(&self.instance, &window);
         let renderer = Renderer::new(&self.instance, surface);
 
-        // Store window and renderer
         self.window = Some(window);
         self.renderer = Some(renderer);
     }
@@ -77,6 +56,8 @@ impl ApplicationHandler for App {
     fn window_event(&mut self, event_loop: &ActiveEventLoop, _id: WindowId, event: WindowEvent) {
         match event {
             WindowEvent::CloseRequested => {
+                self.renderer.as_ref().unwrap().destroy(&self.instance);
+                self.renderer = None;
                 event_loop.exit();
             }
             WindowEvent::RedrawRequested => {
@@ -99,6 +80,30 @@ impl ApplicationHandler for App {
                 // println!("{:?}",_event);
             }
         }
+    }
+}
+
+fn create_window(event_loop: &ActiveEventLoop) -> Window {
+    // SPECIFY : title, inner size
+    let attributes = Window::default_attributes()
+        .with_title("Vulkan project")
+        .with_inner_size(PhysicalSize::new(WIDTH, HEIGHT));
+    // CREATE
+    event_loop
+        .create_window(attributes)
+        .expect("Failed to create window.")
+}
+
+fn create_surface(instance: &Instance, window: &Window) -> SurfaceKHR {
+    unsafe {
+        ash_window::create_surface(
+            instance.entry(),
+            instance,
+            window.display_handle().unwrap().into(),
+            window.window_handle().unwrap().into(),
+            None,
+        )
+        .expect("Failed to create surface.")
     }
 }
 

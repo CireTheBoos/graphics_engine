@@ -10,11 +10,8 @@ use pipeline::RendererPipeline;
 use render_pass::RendererRenderPass;
 use swapchain::RendererSwapchain;
 
-use std::ptr::NonNull;
-
 // Render images on screen from model data to a given surface
 pub struct Renderer {
-    instance: NonNull<Instance>,
     surface: SurfaceKHR,
     device: RendererDevice,
     swapchain: RendererSwapchain,
@@ -23,27 +20,6 @@ pub struct Renderer {
     present_queue: Queue,
     pipeline: RendererPipeline,
     render_pass: RendererRenderPass,
-}
-
-// Destroy views, swapchain, surface (order matters)
-impl Drop for Renderer {
-    fn drop(&mut self) {
-        unsafe {
-            for image_view in &self.image_views {
-                self.device.destroy_image_view(*image_view, None);
-            }
-            self.device.destroy_render_pass(*self.render_pass, None);
-            self.device
-                .destroy_pipeline_layout(self.pipeline.layout, None);
-            self.device
-                .swapchain_khr()
-                .destroy_swapchain(*self.swapchain, None);
-            self.instance
-                .as_ref()
-                .surface_khr()
-                .destroy_surface(self.surface, None);
-        }
-    }
 }
 
 impl Renderer {
@@ -66,7 +42,6 @@ impl Renderer {
         let pipeline = RendererPipeline::new(&device, &swapchain.extent);
 
         Renderer {
-            instance: NonNull::from(instance),
             surface,
             device,
             swapchain,
@@ -75,6 +50,22 @@ impl Renderer {
             present_queue,
             pipeline,
             render_pass,
+        }
+    }
+
+    // Destroy views, swapchain, surface (order matters)
+    pub fn destroy(&self, instance: &Instance) {
+        unsafe {
+            for image_view in &self.image_views {
+                self.device.destroy_image_view(*image_view, None);
+            }
+            self.device
+                .destroy_pipeline_layout(self.pipeline.layout, None);
+            self.device.destroy_render_pass(*self.render_pass, None);
+            self.device
+                .swapchain_khr()
+                .destroy_swapchain(*self.swapchain, None);
+            instance.surface_khr().destroy_surface(self.surface, None);
         }
     }
 }
