@@ -9,7 +9,7 @@ use ash::vk::{
 use super::RendererDevice;
 
 pub struct RendererRenderPass {
-    render_pass: RenderPass,
+    pub render_pass: RenderPass,
 }
 
 // Deref to ash::vk::RenderPass
