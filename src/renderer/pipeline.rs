@@ -9,13 +9,13 @@ use ash::vk::{
     PipelineViewportStateCreateInfo, PolygonMode, PrimitiveTopology, Rect2D, SampleCountFlags,
     ShaderStageFlags, Viewport,
 };
-use render_pass::RendererRenderPass;
+pub use render_pass::RendererRenderPass;
 
 use super::{device::RendererDevice, swapchain::RendererSwapchain};
 use crate::shaders::ShaderManager;
 
 pub struct RendererPipeline {
-    render_pass: RendererRenderPass,
+    pub render_pass: RendererRenderPass,
     pub layout: PipelineLayout,
     graphics_pipeline: Pipeline,
 }

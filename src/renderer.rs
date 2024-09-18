@@ -3,9 +3,9 @@ mod pipeline;
 mod swapchain;
 
 use crate::instance::Instance;
-use ash::vk::{ImageView, Queue, SurfaceKHR};
+use ash::vk::{Extent2D, Framebuffer, FramebufferCreateInfo, ImageView, Queue, SurfaceKHR};
 pub use device::RendererDevice;
-use pipeline::RendererPipeline;
+use pipeline::{RendererPipeline, RendererRenderPass};
 use swapchain::RendererSwapchain;
 
 // Render images on screen from model data to a given surface
@@ -17,6 +17,7 @@ pub struct Renderer {
     graphics_queue: Queue,
     present_queue: Queue,
     pipeline: RendererPipeline,
+    frame_buffers: Vec<Framebuffer>,
 }
 
 impl Renderer {
@@ -35,6 +36,14 @@ impl Renderer {
         // Create pipeline
         let pipeline = RendererPipeline::new(&device, &swapchain);
 
+        // Create frame buffers
+        let frame_buffers = create_frame_buffers(
+            &image_views,
+            &pipeline.render_pass,
+            &swapchain.extent,
+            &device,
+        );
+
         Renderer {
             surface,
             device,
@@ -43,12 +52,16 @@ impl Renderer {
             graphics_queue,
             present_queue,
             pipeline,
+            frame_buffers,
         }
     }
 
     // Destroy views, swapchain, surface (order matters)
     pub fn destroy(&self, instance: &Instance) {
         unsafe {
+            for framebuffer in &self.frame_buffers {
+                self.device.destroy_framebuffer(*framebuffer, None);
+            }
             self.pipeline.destroy(&self.device);
             for image_view in &self.image_views {
                 self.device.destroy_image_view(*image_view, None);
@@ -59,4 +72,28 @@ impl Renderer {
             instance.surface_khr().destroy_surface(self.surface, None);
         }
     }
+}
+
+fn create_frame_buffers(
+    image_views: &Vec<ImageView>,
+    render_pass: &RendererRenderPass,
+    extent: &Extent2D,
+    device: &RendererDevice,
+) -> Vec<Framebuffer> {
+    image_views
+        .iter()
+        .map(|view| {
+            let attachments = [*view];
+
+            let create_info = FramebufferCreateInfo::default()
+                .render_pass(render_pass.render_pass)
+                .layers(1)
+                .height(extent.height)
+                .width(extent.width)
+                .attachments(&attachments);
+
+            unsafe { device.create_framebuffer(&create_info, None) }
+                .expect("Failed to create framebuffer.")
+        })
+        .collect()
 }
