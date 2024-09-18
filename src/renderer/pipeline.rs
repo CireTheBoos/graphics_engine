@@ -1,5 +1,3 @@
-use std::ptr::NonNull;
-
 use ash::vk::{
     ColorComponentFlags, CullModeFlags, Extent2D, FrontFace, Offset2D,
     PipelineColorBlendAttachmentState, PipelineColorBlendStateCreateInfo,
@@ -10,11 +8,10 @@ use ash::vk::{
     ShaderStageFlags, Viewport,
 };
 
-use crate::shaders::ShaderManager;
 use super::device::RendererDevice;
+use crate::shaders::ShaderManager;
 
 pub struct RendererPipeline {
-    device: NonNull<RendererDevice>,
     pub layout: PipelineLayout,
 }
 
@@ -93,9 +90,6 @@ impl RendererPipeline {
         // Cleanup and return
         unsafe { device.destroy_shader_module(vertex, None) };
         unsafe { device.destroy_shader_module(fragment, None) };
-        RendererPipeline {
-            device: NonNull::from(device),
-            layout,
-        }
+        RendererPipeline { layout }
     }
 }
