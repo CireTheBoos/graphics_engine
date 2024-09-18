@@ -1,13 +1,11 @@
 mod device;
 mod pipeline;
-mod render_pass;
 mod swapchain;
 
 use crate::instance::Instance;
 use ash::vk::{ImageView, Queue, SurfaceKHR};
 pub use device::RendererDevice;
 use pipeline::RendererPipeline;
-use render_pass::RendererRenderPass;
 use swapchain::RendererSwapchain;
 
 // Render images on screen from model data to a given surface
@@ -19,7 +17,6 @@ pub struct Renderer {
     graphics_queue: Queue,
     present_queue: Queue,
     pipeline: RendererPipeline,
-    render_pass: RendererRenderPass,
 }
 
 impl Renderer {
@@ -35,11 +32,8 @@ impl Renderer {
         // Create views
         let image_views = swapchain.get_image_views(&device);
 
-        // Create render pass
-        let render_pass = RendererRenderPass::new(&device, &swapchain.format);
-
         // Create pipeline
-        let pipeline = RendererPipeline::new(&device, &swapchain.extent);
+        let pipeline = RendererPipeline::new(&device, &swapchain);
 
         Renderer {
             surface,
@@ -49,19 +43,16 @@ impl Renderer {
             graphics_queue,
             present_queue,
             pipeline,
-            render_pass,
         }
     }
 
     // Destroy views, swapchain, surface (order matters)
     pub fn destroy(&self, instance: &Instance) {
         unsafe {
+            self.pipeline.destroy(&self.device);
             for image_view in &self.image_views {
                 self.device.destroy_image_view(*image_view, None);
             }
-            self.device
-                .destroy_pipeline_layout(self.pipeline.layout, None);
-            self.device.destroy_render_pass(*self.render_pass, None);
             self.device
                 .swapchain_khr()
                 .destroy_swapchain(*self.swapchain, None);

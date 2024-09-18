@@ -1,22 +1,30 @@
-use ash::vk::{
-    ColorComponentFlags, CullModeFlags, Extent2D, FrontFace, Offset2D,
-    PipelineColorBlendAttachmentState, PipelineColorBlendStateCreateInfo,
-    PipelineDepthStencilStateCreateInfo, PipelineInputAssemblyStateCreateInfo, PipelineLayout,
-    PipelineLayoutCreateInfo, PipelineMultisampleStateCreateInfo,
-    PipelineRasterizationStateCreateInfo, PipelineShaderStageCreateInfo,
-    PipelineVertexInputStateCreateInfo, PolygonMode, PrimitiveTopology, Rect2D, SampleCountFlags,
-    ShaderStageFlags, Viewport,
-};
+mod render_pass;
 
-use super::device::RendererDevice;
+use ash::vk::{
+    ColorComponentFlags, CullModeFlags, FrontFace, Offset2D, PipelineColorBlendAttachmentState,
+    PipelineColorBlendStateCreateInfo, PipelineDepthStencilStateCreateInfo,
+    PipelineInputAssemblyStateCreateInfo, PipelineLayout, PipelineLayoutCreateInfo,
+    PipelineMultisampleStateCreateInfo, PipelineRasterizationStateCreateInfo,
+    PipelineShaderStageCreateInfo, PipelineVertexInputStateCreateInfo, PolygonMode,
+    PrimitiveTopology, Rect2D, SampleCountFlags, ShaderStageFlags, Viewport,
+};
+use render_pass::RendererRenderPass;
+
+use super::{device::RendererDevice, swapchain::RendererSwapchain};
 use crate::shaders::ShaderManager;
 
 pub struct RendererPipeline {
+    render_pass: RendererRenderPass,
     pub layout: PipelineLayout,
 }
 
 impl RendererPipeline {
-    pub fn new(device: &RendererDevice, extent: &Extent2D) -> RendererPipeline {
+    pub fn new(device: &RendererDevice, swapchain: &RendererSwapchain) -> RendererPipeline {
+        // Create render pass
+        let render_pass = RendererRenderPass::new(&device, &swapchain.format);
+
+        let extent = &swapchain.extent;
+
         // compiling shaders
         let shader_manager = ShaderManager::new(device);
         let vertex = shader_manager.vertex();
@@ -90,6 +98,16 @@ impl RendererPipeline {
         // Cleanup and return
         unsafe { device.destroy_shader_module(vertex, None) };
         unsafe { device.destroy_shader_module(fragment, None) };
-        RendererPipeline { layout }
+        RendererPipeline {
+            render_pass,
+            layout,
+        }
+    }
+
+    pub fn destroy(&self, device: &RendererDevice) {
+        unsafe {
+            device.destroy_render_pass(*self.render_pass, None);
+            device.destroy_pipeline_layout(self.layout, None);
+        }
     }
 }
