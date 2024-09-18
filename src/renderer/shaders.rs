@@ -1,4 +1,7 @@
-use shaderc::{self, CompilationArtifact};
+use ash::vk::{ShaderModule, ShaderModuleCreateInfo};
+use shaderc::{Compiler, ShaderKind};
+
+use super::device::RendererDevice;
 
 const VERTEX_SHADER_SRC: &str = "
 #version 450
@@ -14,24 +17,6 @@ void main() {
 }
 ";
 
-pub fn vertex() -> CompilationArtifact {
-    let compiler = shaderc::Compiler::new().unwrap();
-    // options seems interesting
-    // let mut options = shaderc::CompileOptions::new().unwrap();
-    // options.add_macro_definition("EP", Some("main"));
-    let binary_result = compiler
-        .compile_into_spirv(
-            VERTEX_SHADER_SRC,
-            shaderc::ShaderKind::Vertex,
-            "vertex.glsl",
-            "main",
-            None,
-        )
-        .unwrap();
-
-    binary_result
-}
-
 const FRAGMENT_SHADER_SRC: &str = " 
 #version 450
 
@@ -42,17 +27,55 @@ void main() {
 }
 ";
 
-pub fn fragment() -> CompilationArtifact {
-    let compiler = shaderc::Compiler::new().unwrap();
-    let binary_result = compiler
-        .compile_into_spirv(
-            FRAGMENT_SHADER_SRC,
-            shaderc::ShaderKind::Fragment,
-            "fragment.glsl",
-            "main",
-            None,
-        )
-        .unwrap();
+pub struct ShaderManager<'a> {
+    compiler: Compiler,
+    device: &'a RendererDevice,
+}
 
-    binary_result
+impl ShaderManager<'_> {
+    pub fn new<'a>(device: &'a RendererDevice) -> ShaderManager<'a> {
+        let compiler = Compiler::new().unwrap();
+        ShaderManager { compiler, device }
+    }
+
+    pub fn vertex(&self) -> ShaderModule {
+        // Compile
+        let binary_result = self
+            .compiler
+            .compile_into_spirv(
+                VERTEX_SHADER_SRC,
+                ShaderKind::Vertex,
+                "vertex.glsl",
+                "main",
+                None,
+            )
+            .unwrap();
+        let code = binary_result.as_binary();
+
+        // Create shader module
+        let create_info = ShaderModuleCreateInfo::default().code(code);
+        unsafe { self.device.create_shader_module(&create_info, None) }
+            .expect("Failed to create shader module")
+    }
+
+    pub fn fragment(&self) -> ShaderModule {
+        // Compile
+        let binary_result = self
+            .compiler
+            .compile_into_spirv(
+                FRAGMENT_SHADER_SRC,
+                ShaderKind::Fragment,
+                "frafment.glsl",
+                "main",
+                None,
+            )
+            .unwrap();
+
+        let code = binary_result.as_binary();
+
+        // Create shader module
+        let create_info = ShaderModuleCreateInfo::default().code(code);
+        unsafe { self.device.create_shader_module(&create_info, None) }
+            .expect("Failed to create shader module")
+    }
 }

@@ -55,7 +55,7 @@ impl Renderer {
         let image_views = swapchain.get_image_views(&device);
 
         // Create pipeline
-        let pipeline = RendererPipeline::new();
+        let pipeline = RendererPipeline::new(&device);
 
         Renderer {
             instance: NonNull::from(instance),
