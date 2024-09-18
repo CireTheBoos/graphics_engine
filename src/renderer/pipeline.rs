@@ -10,7 +10,8 @@ use ash::vk::{
     ShaderStageFlags, Viewport,
 };
 
-use super::{device::RendererDevice, shaders::ShaderManager};
+use crate::shaders::ShaderManager;
+use super::device::RendererDevice;
 
 pub struct RendererPipeline {
     device: NonNull<RendererDevice>,

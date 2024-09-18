@@ -1,7 +1,7 @@
 use ash::vk::{ShaderModule, ShaderModuleCreateInfo};
 use shaderc::{Compiler, ShaderKind};
 
-use super::device::RendererDevice;
+use super::renderer::RendererDevice;
 
 const VERTEX_SHADER_SRC: &str = "
 #version 450

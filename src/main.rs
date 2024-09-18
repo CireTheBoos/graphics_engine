@@ -1,5 +1,6 @@
 mod instance;
 mod renderer;
+mod shaders;
 
 use instance::Instance;
 use renderer::Renderer;

@@ -1,11 +1,10 @@
 mod device;
 mod pipeline;
-mod shaders;
 mod swapchain;
 
 use crate::instance::Instance;
 use ash::vk::{ImageView, Queue, SurfaceKHR};
-use device::RendererDevice;
+pub use device::RendererDevice;
 use pipeline::RendererPipeline;
 use swapchain::RendererSwapchain;
 
@@ -55,6 +54,8 @@ impl Renderer {
 
         // Create views
         let image_views = swapchain.get_image_views(&device);
+
+        // Create render pass
 
         // Create pipeline
         let pipeline = RendererPipeline::new(&device, &swapchain.extent);
