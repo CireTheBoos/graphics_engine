@@ -1,109 +1,101 @@
 use crate::instance::Instance;
 
-use ash::{
-    vk::{
-        self, ColorSpaceKHR, ExtensionProperties, Extent2D, Format, PhysicalDevice,
-        PhysicalDeviceType, PresentModeKHR, QueueFlags, SurfaceCapabilitiesKHR, SurfaceFormatKHR,
-        SurfaceKHR,
-    },
-    Device as AshDevice,
+use ash::vk::{
+    self, ColorSpaceKHR, ExtensionProperties, Format, PhysicalDevice, PhysicalDeviceType,
+    PresentModeKHR, QueueFlags, SurfaceCapabilitiesKHR, SurfaceFormatKHR, SurfaceKHR,
 };
 use std::{
     ffi::{c_char, CStr},
     ops::Deref,
-    ptr::NonNull,
 };
 
-const DEVICE_EXTENSIONS: [*const c_char; 1] = [c"VK_KHR_swapchain".as_ptr()];
+const SWAPCHAIN_KHR_EXTENSION: *const c_char = c"VK_KHR_swapchain".as_ptr();
 
-// Wrapper around ash::Device : can provide device-level extension vk fns
+// Device made for rendering
 pub struct RendererDevice {
-    instance: NonNull<Instance>,
-    device: AshDevice,
-    pub graphics_idx: u32,
-    pub present_idx: u32,
+    device: ash::Device,
+    // extension of ash::Device for swapchain vk fns
+    swapchain_khr_device: ash::khr::swapchain::Device,
+    pub infos: PhysicalDeviceInfos,
 }
 
 // Deref to ash::Device
 impl Deref for RendererDevice {
-    type Target = AshDevice;
+    type Target = ash::Device;
     fn deref(&self) -> &Self::Target {
         &self.device
     }
 }
 
-// Destroy device
-impl Drop for RendererDevice {
-    fn drop(&mut self) {
+impl RendererDevice {
+    pub fn new(instance: &Instance, surface: &SurfaceKHR) -> RendererDevice {
+        let infos = select_physical_device(instance, surface)
+            .expect("Failed to find a suitable physical device.");
+        let device = create_device(instance, &infos);
+        let swapchain_khr_device = ash::khr::swapchain::Device::new(instance, &device);
+        RendererDevice {
+            device,
+            swapchain_khr_device,
+            infos,
+        }
+    }
+
+    pub fn destroy(&mut self) {
         unsafe { self.destroy_device(None) };
     }
-}
 
-impl RendererDevice {
-    pub fn new(instance: &Instance, surface: &SurfaceKHR) -> (RendererDevice, PhysicalDeviceInfos) {
-        let physical_device_infos = select_physical_device(instance, surface);
-        let device = create_device(instance, physical_device_infos);
-        let renderer_device = RendererDevice {
-            instance: NonNull::from(instance),
-            device,
-            graphics_idx: physical_device_infos.graphics_idx,
-            present_idx: physical_device_infos.present_idx,
-        };
-        (renderer_device, physical_device_infos)
-    }
-
-    pub fn swapchain_khr(&self) -> ash::khr::swapchain::Device {
-        ash::khr::swapchain::Device::new(unsafe { self.instance.as_ref() }, &self)
+    pub fn swapchain_khr(&self) -> &ash::khr::swapchain::Device {
+        &self.swapchain_khr_device
     }
 }
 
-fn create_device(instance: &Instance, infos: PhysicalDeviceInfos) -> AshDevice {
-    // SPECIFY : queue families
-    let graphics_info = vk::DeviceQueueCreateInfo::default()
-        .queue_family_index(infos.graphics_idx)
-        .queue_priorities(&[0.5]);
-    let present_info = vk::DeviceQueueCreateInfo::default()
-        .queue_family_index(infos.present_idx)
-        .queue_priorities(&[0.5]);
-    let families_info = if infos.graphics_idx != infos.present_idx {
-        vec![graphics_info, present_info]
-    } else {
-        vec![graphics_info]
-    };
-
-    // SPECIFY : extensions
-    let extensions = DEVICE_EXTENSIONS;
-
-    // SPECIFY : features (none here)
-    let features = vk::PhysicalDeviceFeatures::default();
-
-    // CREATE : device
-    let create_info = vk::DeviceCreateInfo::default()
-        .queue_create_infos(&families_info)
-        .enabled_extension_names(&extensions)
-        .enabled_features(&features);
-    unsafe {
-        instance
-            .create_device(infos.physical_device, &create_info, None)
-            .expect("Failed to create device.")
-    }
-}
-
-#[derive(Clone, Copy)]
 pub struct PhysicalDeviceInfos {
     physical_device: PhysicalDevice,
     score: u32,
-    graphics_idx: u32,
-    present_idx: u32,
-    // swapchain infos
+    pub graphics_idx: u32,
+    pub present_idx: u32,
     pub capabilities: SurfaceCapabilitiesKHR,
-    pub extent: Extent2D,
-    pub format: SurfaceFormatKHR,
+    pub surface_format: SurfaceFormatKHR,
     pub present_mode: PresentModeKHR,
 }
 
-fn select_physical_device(instance: &Instance, surface: &SurfaceKHR) -> PhysicalDeviceInfos {
-    // query all physical devices
+fn create_device(instance: &Instance, infos: &PhysicalDeviceInfos) -> ash::Device {
+    // SPECIFY : queues
+    let queue_create_infos =
+    // 1 queue for graphics and present
+    if infos.graphics_idx == infos.present_idx {
+        let graphics_present_info = vk::DeviceQueueCreateInfo::default()
+            .queue_family_index(infos.graphics_idx)
+            .queue_priorities(&[0.5]);
+        vec![graphics_present_info]
+    }
+    // 1 queue for graphics, 1 queue for present
+    else {
+        let graphics_info = vk::DeviceQueueCreateInfo::default()
+            .queue_family_index(infos.graphics_idx)
+            .queue_priorities(&[0.5]);
+        let present_info = vk::DeviceQueueCreateInfo::default()
+            .queue_family_index(infos.present_idx)
+            .queue_priorities(&[0.5]);
+        vec![graphics_info,present_info]
+    };
+
+    // SPECIFY : extensions
+    let extensions = [SWAPCHAIN_KHR_EXTENSION];
+
+    // CREATE : device
+    let create_info = vk::DeviceCreateInfo::default()
+        .queue_create_infos(&queue_create_infos)
+        .enabled_extension_names(&extensions);
+    unsafe { instance.create_device(infos.physical_device, &create_info, None) }
+        .expect("Failed to create device.")
+}
+
+fn select_physical_device(
+    instance: &Instance,
+    surface: &SurfaceKHR,
+) -> Result<PhysicalDeviceInfos, ()> {
+    // Query all physical devices
     let physical_devices: Vec<PhysicalDeviceInfos> =
         unsafe { instance.enumerate_physical_devices() }
             .expect("Failed to query physical devices.")
@@ -113,16 +105,11 @@ fn select_physical_device(instance: &Instance, surface: &SurfaceKHR) -> Physical
             })
             .collect();
 
-    // panic if no suitable device
-    if physical_devices.is_empty() {
-        panic!("No suitable device found.");
-    }
-
-    // select the highest scoring device
+    // Select highest scoring device
     physical_devices
         .into_iter()
         .max_by_key(|device| device.score)
-        .unwrap()
+        .ok_or(())
 }
 
 // Query infos for a physical device (fails when the device is unsuitable)
@@ -131,7 +118,7 @@ fn query_physical_device_infos(
     surface: &SurfaceKHR,
     physical_device: PhysicalDevice,
 ) -> Result<PhysicalDeviceInfos, ()> {
-    // device data
+    // fetching general device data
     let queue_families =
         unsafe { instance.get_physical_device_queue_family_properties(physical_device) };
     let available_extensions =
@@ -159,22 +146,19 @@ fn query_physical_device_infos(
         })
         .ok_or(())? as u32;
 
-    // swapchain support
-    let has_swapchain_extension =
-        is_extension_available(DEVICE_EXTENSIONS[0], &available_extensions);
-    if !has_swapchain_extension {
+    // swapchain extension support
+    if !is_extension_available(SWAPCHAIN_KHR_EXTENSION, &available_extensions) {
         return Err(());
     }
 
-    // fetching swapchain capabilities, format, present_mode
-    // unwrap()s shouldn't fail because swapchain is supported
+    // fetching surface capabilities, format, present_mode for this device
     let capabilities = unsafe {
         instance
             .surface_khr()
             .get_physical_device_surface_capabilities(physical_device, *surface)
     }
     .unwrap();
-    let available_formats = unsafe {
+    let available_surface_formats = unsafe {
         instance
             .surface_khr()
             .get_physical_device_surface_formats(physical_device, *surface)
@@ -186,11 +170,8 @@ fn query_physical_device_infos(
             .get_physical_device_surface_present_modes(physical_device, *surface)
     }
     .unwrap();
-    if available_formats.is_empty() || available_present_modes.is_empty() {
-        return Err(());
-    }
 
-    // SCORE
+    // SCORING
     let mut score = 0;
 
     // dedicated gpu are prefered
@@ -207,21 +188,18 @@ fn query_physical_device_infos(
     }
 
     // SRGB_8 format is prefered
-    let (format, format_score) = choose_best_format(&available_formats);
-    score += format_score;
+    let (surface_format, surface_format_score) = choose_best_format(&available_surface_formats);
+    score += surface_format_score;
 
     // FIFO present mode is prefered
     let (present_mode, present_mode_score) = choose_best_present_mode(&available_present_modes);
     score += present_mode_score;
 
-    let extent = choose_best_extent(&capabilities);
-
     Ok(PhysicalDeviceInfos {
         physical_device,
         score,
         capabilities,
-        extent,
-        format,
+        surface_format,
         present_mode,
         graphics_idx,
         present_idx,
@@ -239,17 +217,14 @@ fn is_extension_available(
 }
 
 fn choose_best_format(available_formats: &Vec<SurfaceFormatKHR>) -> (SurfaceFormatKHR, u32) {
-    // filter available formats based on match : pattern => score
-    // keep the first one in case no format match
-    // then pick the highest score
     available_formats
         .iter()
         .enumerate()
+        // filter available surface formats based on match : pattern => score
         .filter_map(|(idx, format)| {
             if idx == 0 {
                 return Some((*format, 0));
             }
-            // Here's the scoring
             match (format.format, format.color_space) {
                 (Format::B8G8R8A8_SRGB, ColorSpaceKHR::SRGB_NONLINEAR) => Some((*format, 10)),
                 _ => None,
@@ -262,17 +237,14 @@ fn choose_best_format(available_formats: &Vec<SurfaceFormatKHR>) -> (SurfaceForm
 fn choose_best_present_mode(
     available_present_modes: &Vec<PresentModeKHR>,
 ) -> (PresentModeKHR, u32) {
-    // filter available present modes based on match : pattern => score
-    // keep the first one in case no present mode match
-    // then pick the highest score
     available_present_modes
         .iter()
         .enumerate()
+        // filter available present modes based on match : pattern => score
         .filter_map(|(idx, present_mode)| {
             if idx == 0 {
                 return Some((*present_mode, 0));
             }
-            // Here's the scoring
             match *present_mode {
                 PresentModeKHR::FIFO => Some((*present_mode, 10)),
                 _ => None,
@@ -280,8 +252,4 @@ fn choose_best_present_mode(
         })
         .max_by_key(|(_, score)| *score)
         .unwrap()
-}
-
-fn choose_best_extent(capabilities: &SurfaceCapabilitiesKHR) -> Extent2D {
-    capabilities.current_extent
 }

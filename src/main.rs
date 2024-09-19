@@ -56,7 +56,7 @@ impl ApplicationHandler for App {
     fn window_event(&mut self, event_loop: &ActiveEventLoop, _id: WindowId, event: WindowEvent) {
         match event {
             WindowEvent::CloseRequested => {
-                self.renderer.as_ref().unwrap().destroy(&self.instance);
+                self.renderer.as_mut().unwrap().destroy(&self.instance);
                 self.renderer = None;
                 event_loop.exit();
             }

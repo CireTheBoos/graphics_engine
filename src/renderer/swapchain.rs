@@ -9,7 +9,7 @@ use ash::{
     Device as AshDevice,
 };
 
-use super::device::{PhysicalDeviceInfos, RendererDevice};
+use super::device::RendererDevice;
 
 pub struct RendererSwapchain {
     swapchain: SwapchainKHR,
@@ -27,11 +27,8 @@ impl Deref for RendererSwapchain {
 }
 
 impl RendererSwapchain {
-    pub fn new(
-        device: &RendererDevice,
-        surface: &SurfaceKHR,
-        infos: PhysicalDeviceInfos,
-    ) -> RendererSwapchain {
+    pub fn new(device: &RendererDevice, surface: &SurfaceKHR) -> RendererSwapchain {
+        let infos = &device.infos;
         // SPECIFY : minimum image count (+1 above min if possible)
         let min_image_count =
             if infos.capabilities.min_image_count == infos.capabilities.max_image_count {
@@ -44,9 +41,9 @@ impl RendererSwapchain {
         let mut create_info = SwapchainCreateInfoKHR::default()
             .surface(*surface)
             .min_image_count(min_image_count)
-            .image_format(infos.format.format)
-            .image_color_space(infos.format.color_space)
-            .image_extent(infos.extent)
+            .image_format(infos.surface_format.format)
+            .image_color_space(infos.surface_format.color_space)
+            .image_extent(infos.capabilities.current_extent)
             .image_array_layers(1)
             .present_mode(infos.present_mode)
             .image_usage(ImageUsageFlags::COLOR_ATTACHMENT)
@@ -56,8 +53,8 @@ impl RendererSwapchain {
             .old_swapchain(SwapchainKHR::null());
 
         // SPECIFY : queues sharing mode
-        let queues = [device.graphics_idx, device.present_idx];
-        if device.graphics_idx != device.present_idx {
+        let queues = [infos.graphics_idx, infos.present_idx];
+        if infos.graphics_idx != infos.present_idx {
             create_info = create_info
                 .image_sharing_mode(SharingMode::CONCURRENT)
                 .queue_family_indices(&queues);
@@ -75,8 +72,8 @@ impl RendererSwapchain {
 
         RendererSwapchain {
             swapchain,
-            format: infos.format.format,
-            extent: infos.extent,
+            format: infos.surface_format.format,
+            extent: infos.capabilities.current_extent,
             images,
         }
     }

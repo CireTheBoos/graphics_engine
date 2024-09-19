@@ -8,7 +8,9 @@ pub use device::RendererDevice;
 use pipeline::{RendererPipeline, RendererRenderPass};
 use swapchain::RendererSwapchain;
 
-// Render images on screen from model data to a given surface
+// Given a surface :
+// - Computes imgs from input data (adapted to surface)
+// - Presents them continuously on surface
 pub struct Renderer {
     surface: SurfaceKHR,
     device: RendererDevice,
@@ -23,12 +25,12 @@ pub struct Renderer {
 impl Renderer {
     pub fn new(instance: &Instance, surface: SurfaceKHR) -> Renderer {
         // Create device and queues
-        let (device, infos) = RendererDevice::new(instance, &surface);
-        let graphics_queue = unsafe { device.get_device_queue(device.graphics_idx, 0) };
-        let present_queue = unsafe { device.get_device_queue(device.present_idx, 0) };
+        let device = RendererDevice::new(instance, &surface);
+        let graphics_queue = unsafe { device.get_device_queue(device.infos.graphics_idx, 0) };
+        let present_queue = unsafe { device.get_device_queue(device.infos.present_idx, 0) };
 
         // Create swapchain
-        let swapchain = RendererSwapchain::new(&device, &surface, infos);
+        let swapchain = RendererSwapchain::new(&device, &surface);
 
         // Create views
         let image_views = swapchain.get_image_views(&device);
@@ -57,7 +59,7 @@ impl Renderer {
     }
 
     // Destroy views, swapchain, surface (order matters)
-    pub fn destroy(&self, instance: &Instance) {
+    pub fn destroy(&mut self, instance: &Instance) {
         unsafe {
             for framebuffer in &self.frame_buffers {
                 self.device.destroy_framebuffer(*framebuffer, None);
@@ -70,6 +72,7 @@ impl Renderer {
                 .swapchain_khr()
                 .destroy_swapchain(*self.swapchain, None);
             instance.surface_khr().destroy_surface(self.surface, None);
+            self.device.destroy();
         }
     }
 }
