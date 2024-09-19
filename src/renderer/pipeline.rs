@@ -11,7 +11,7 @@ use ash::vk::{
 };
 pub use render_pass::RendererRenderPass;
 
-use super::{device::RendererDevice, swapchain::RendererSwapchain};
+use super::device::RendererDevice;
 use crate::shaders::ShaderManager;
 
 pub struct RendererPipeline {
@@ -21,11 +21,11 @@ pub struct RendererPipeline {
 }
 
 impl RendererPipeline {
-    pub fn new(device: &RendererDevice, swapchain: &RendererSwapchain) -> RendererPipeline {
+    pub fn new(device: &RendererDevice) -> RendererPipeline {
         // Create render pass
-        let render_pass = RendererRenderPass::new(&device, &swapchain.format);
+        let render_pass = RendererRenderPass::new(&device, &device.infos.surface_format.format);
 
-        let extent = &swapchain.extent;
+        let extent = &device.infos.capabilities.current_extent;
 
         // compiling shaders
         let shader_manager = ShaderManager::new(device);

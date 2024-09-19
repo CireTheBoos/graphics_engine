@@ -1,20 +1,15 @@
 use std::ops::Deref;
 
-use ash::{
-    vk::{
-        ComponentMapping, ComponentSwizzle, CompositeAlphaFlagsKHR, Extent2D, Format, Image,
-        ImageAspectFlags, ImageSubresourceRange, ImageUsageFlags, ImageView, ImageViewCreateInfo,
-        ImageViewType, SharingMode, SurfaceKHR, SwapchainCreateInfoKHR, SwapchainKHR,
-    },
-    Device as AshDevice,
+use ash::vk::{
+    ComponentMapping, ComponentSwizzle, CompositeAlphaFlagsKHR, Image, ImageAspectFlags,
+    ImageSubresourceRange, ImageUsageFlags, ImageView, ImageViewCreateInfo, ImageViewType,
+    SharingMode, SurfaceKHR, SwapchainCreateInfoKHR, SwapchainKHR,
 };
 
 use super::device::RendererDevice;
 
 pub struct RendererSwapchain {
     swapchain: SwapchainKHR,
-    pub format: Format,
-    pub extent: Extent2D,
     images: Vec<Image>,
 }
 
@@ -28,8 +23,10 @@ impl Deref for RendererSwapchain {
 
 impl RendererSwapchain {
     pub fn new(device: &RendererDevice, surface: &SurfaceKHR) -> RendererSwapchain {
+        // device data
         let infos = &device.infos;
-        // SPECIFY : minimum image count (+1 above min if possible)
+
+        // SPECIFY : minimum image count (triple buffering if possible)
         let min_image_count =
             if infos.capabilities.min_image_count == infos.capabilities.max_image_count {
                 infos.capabilities.min_image_count
@@ -70,15 +67,10 @@ impl RendererSwapchain {
         let images = unsafe { device.swapchain_khr().get_swapchain_images(swapchain) }
             .expect("Failed to extract images.");
 
-        RendererSwapchain {
-            swapchain,
-            format: infos.surface_format.format,
-            extent: infos.capabilities.current_extent,
-            images,
-        }
+        RendererSwapchain { swapchain, images }
     }
 
-    pub fn get_image_views(&self, device: &AshDevice) -> Vec<ImageView> {
+    pub fn get_image_views(&self, device: &RendererDevice) -> Vec<ImageView> {
         self.images
             .iter()
             .map(|image| {
@@ -98,7 +90,7 @@ impl RendererSwapchain {
                 let create_info = ImageViewCreateInfo::default()
                     .view_type(ImageViewType::TYPE_2D)
                     .image(*image)
-                    .format(self.format)
+                    .format(device.infos.surface_format.format)
                     .components(components)
                     .subresource_range(subresource_range);
 

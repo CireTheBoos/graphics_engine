@@ -49,6 +49,7 @@ impl RendererDevice {
     }
 }
 
+#[derive(Debug)]
 pub struct PhysicalDeviceInfos {
     physical_device: PhysicalDevice,
     score: u32,

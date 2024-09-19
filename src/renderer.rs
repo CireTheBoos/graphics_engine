@@ -9,16 +9,19 @@ use pipeline::{RendererPipeline, RendererRenderPass};
 use swapchain::RendererSwapchain;
 
 // Given a surface :
-// - Computes imgs from input data (adapted to surface)
-// - Presents them continuously on surface
+// - Computes imgs from input data (adapted to the surface)
+// - Presents them continuously on the surface
 pub struct Renderer {
     surface: SurfaceKHR,
     device: RendererDevice,
-    swapchain: RendererSwapchain,
-    image_views: Vec<ImageView>,
     graphics_queue: Queue,
     present_queue: Queue,
+    // presentation
+    swapchain: RendererSwapchain,
+    image_views: Vec<ImageView>,
+    // computation
     pipeline: RendererPipeline,
+    // ???
     frame_buffers: Vec<Framebuffer>,
 }
 
@@ -29,20 +32,18 @@ impl Renderer {
         let graphics_queue = unsafe { device.get_device_queue(device.infos.graphics_idx, 0) };
         let present_queue = unsafe { device.get_device_queue(device.infos.present_idx, 0) };
 
-        // Create swapchain
+        // PRESENTATION : Create swapchain and image views
         let swapchain = RendererSwapchain::new(&device, &surface);
-
-        // Create views
         let image_views = swapchain.get_image_views(&device);
 
-        // Create pipeline
-        let pipeline = RendererPipeline::new(&device, &swapchain);
+        // COMPUTATION : Create pipeline
+        let pipeline = RendererPipeline::new(&device);
 
         // Create frame buffers
         let frame_buffers = create_frame_buffers(
             &image_views,
             &pipeline.render_pass,
-            &swapchain.extent,
+            &device.infos.capabilities.current_extent,
             &device,
         );
 
