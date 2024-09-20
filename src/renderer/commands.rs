@@ -11,7 +11,7 @@ use super::{
 
 pub struct RendererCommands {
     command_pool: CommandPool,
-    command_buffer: CommandBuffer,
+    pub command_buffer: CommandBuffer,
 }
 
 impl RendererCommands {

@@ -1,8 +1,9 @@
 use std::ops::Deref;
 
 use ash::vk::{
-    AttachmentDescription, AttachmentLoadOp, AttachmentReference, AttachmentStoreOp, ImageLayout,
-    PipelineBindPoint, RenderPass, RenderPassCreateInfo, SampleCountFlags, SubpassDescription,
+    AccessFlags, AttachmentDescription, AttachmentLoadOp, AttachmentReference, AttachmentStoreOp,
+    ImageLayout, PipelineBindPoint, PipelineStageFlags, RenderPass, RenderPassCreateInfo,
+    SampleCountFlags, SubpassDependency, SubpassDescription, SUBPASS_EXTERNAL,
 };
 
 use super::RendererDevice;
@@ -37,6 +38,16 @@ impl RendererRenderPass {
             .layout(ImageLayout::COLOR_ATTACHMENT_OPTIMAL);
         let color_attachments_refs = [attachment_ref];
 
+        // SPECIFY : subpass dependency
+        let dependency = SubpassDependency::default()
+            .src_subpass(SUBPASS_EXTERNAL)
+            .dst_subpass(0)
+            .src_stage_mask(PipelineStageFlags::COLOR_ATTACHMENT_OUTPUT)
+            .src_access_mask(AccessFlags::empty())
+            .dst_stage_mask(PipelineStageFlags::COLOR_ATTACHMENT_OUTPUT)
+            .dst_access_mask(AccessFlags::COLOR_ATTACHMENT_WRITE);
+        let dependencies = [dependency];
+
         // CREATE : subpass
         let subpass = SubpassDescription::default()
             .pipeline_bind_point(PipelineBindPoint::GRAPHICS)
@@ -46,7 +57,8 @@ impl RendererRenderPass {
         // CREATE : render pass
         let create_info = RenderPassCreateInfo::default()
             .attachments(&color_attachments)
-            .subpasses(&subpasses);
+            .subpasses(&subpasses)
+            .dependencies(&dependencies);
         let render_pass = unsafe { device.create_render_pass(&create_info, None) }
             .expect("Failed to create render pass.");
         RendererRenderPass { render_pass }

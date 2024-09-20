@@ -3,10 +3,13 @@ mod device;
 mod pipeline;
 mod swapchain;
 
+use std::u64;
+
 use crate::instance::Instance;
 use ash::vk::{
-    Extent2D, Fence, FenceCreateInfo, Framebuffer, FramebufferCreateInfo, ImageView, Queue,
-    Semaphore, SemaphoreCreateInfo, SurfaceKHR,
+    CommandBufferResetFlags, Extent2D, Fence, FenceCreateFlags, FenceCreateInfo, Framebuffer,
+    FramebufferCreateInfo, ImageView, PipelineStageFlags, PresentInfoKHR, Queue, Semaphore,
+    SemaphoreCreateInfo, SubmitInfo, SurfaceKHR,
 };
 use commands::RendererCommands;
 pub use device::RendererDevice;
@@ -81,6 +84,7 @@ impl Renderer {
     // Destroy views, swapchain, surface (order matters)
     pub fn destroy(&mut self, instance: &Instance) {
         unsafe {
+            self.device.device_wait_idle().unwrap();
             self.device
                 .destroy_semaphore(self.img_available_semaphor, None);
             self.device
@@ -103,7 +107,72 @@ impl Renderer {
         }
     }
 
-    pub fn draw_frame(&mut self) {}
+    pub fn draw_frame(&mut self) {
+        // wait for previous frame
+        unsafe {
+            self.device
+                .wait_for_fences(&[self.in_flight_fence], true, u64::MAX)
+                .expect("Failed to wait on previous frame.")
+        };
+        unsafe { self.device.reset_fences(&[self.in_flight_fence]) }
+            .expect("Failed to reset fence.");
+
+        // Acquiring swapchain img
+        let (idx, _) = unsafe {
+            self.device.swapchain_khr().acquire_next_image(
+                *self.swapchain,
+                u64::MAX,
+                self.img_available_semaphor,
+                Fence::null(),
+            )
+        }
+        .expect("Failed to acquire next swapchain image.");
+
+        // Record command buffer
+        unsafe {
+            self.device.reset_command_buffer(
+                self.commands.command_buffer,
+                CommandBufferResetFlags::empty(),
+            )
+        }
+        .expect("Failed to reset command buffer.");
+        self.commands.record_command_buffer(
+            &self.device,
+            &self.render_pass,
+            &self.frame_buffers[idx as usize],
+            &self.pipeline,
+        );
+
+        // submit command buffer
+        let wait_semaphores = [self.img_available_semaphor];
+        let wait_dst_stage_mask = [PipelineStageFlags::COLOR_ATTACHMENT_OUTPUT];
+        let signal_semaphores = [self.render_finished_semaphor];
+        let command_buffers = [self.commands.command_buffer];
+        let submit_info = SubmitInfo::default()
+            .wait_semaphores(&wait_semaphores)
+            .wait_dst_stage_mask(&wait_dst_stage_mask)
+            .command_buffers(&command_buffers)
+            .signal_semaphores(&signal_semaphores);
+        unsafe {
+            self.device
+                .queue_submit(self.graphics_queue, &[submit_info], self.in_flight_fence)
+        }
+        .expect("Failed to submit commands.");
+
+        // presentation
+        let indices = [idx];
+        let swapchains = [*self.swapchain];
+        let present_info = PresentInfoKHR::default()
+            .wait_semaphores(&signal_semaphores)
+            .swapchains(&swapchains)
+            .image_indices(&indices);
+        unsafe {
+            self.device
+                .swapchain_khr()
+                .queue_present(self.present_queue, &present_info)
+        }
+        .expect("Failed to present image.");
+    }
 }
 
 fn create_frame_buffers(
@@ -132,7 +201,7 @@ fn create_frame_buffers(
 
 fn create_sync_objects(device: &RendererDevice) -> (Semaphore, Semaphore, Fence) {
     let semaphore_create_info = SemaphoreCreateInfo::default();
-    let fence_create_info = FenceCreateInfo::default();
+    let fence_create_info = FenceCreateInfo::default().flags(FenceCreateFlags::SIGNALED);
 
     let img_available_semaphor = unsafe { device.create_semaphore(&semaphore_create_info, None) }
         .expect("Failed to create semaphore.");
