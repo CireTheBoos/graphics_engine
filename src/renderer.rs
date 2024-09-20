@@ -1,9 +1,11 @@
+mod commands;
 mod device;
 mod pipeline;
 mod swapchain;
 
 use crate::instance::Instance;
 use ash::vk::{Extent2D, Framebuffer, FramebufferCreateInfo, ImageView, Queue, SurfaceKHR};
+use commands::RendererCommands;
 pub use device::RendererDevice;
 use pipeline::{RendererPipeline, RendererRenderPass};
 use swapchain::RendererSwapchain;
@@ -22,8 +24,9 @@ pub struct Renderer {
     image_views: Vec<ImageView>,
     render_pass: RendererRenderPass,
     pipeline: RendererPipeline,
-    // ???
     frame_buffers: Vec<Framebuffer>,
+    // commands
+    commands: RendererCommands,
 }
 
 impl Renderer {
@@ -40,14 +43,15 @@ impl Renderer {
         let image_views = swapchain.get_image_views(&device);
         let render_pass = RendererRenderPass::new(&device);
         let pipeline = RendererPipeline::new(&device, &render_pass);
-
-        // Create frame buffers
         let frame_buffers = create_frame_buffers(
             &image_views,
             &render_pass,
             &device.infos.capabilities.current_extent,
             &device,
         );
+
+        // COMMAND :
+        let commands = RendererCommands::new(&device);
 
         Renderer {
             surface,
@@ -59,12 +63,14 @@ impl Renderer {
             render_pass,
             pipeline,
             frame_buffers,
+            commands,
         }
     }
 
     // Destroy views, swapchain, surface (order matters)
     pub fn destroy(&mut self, instance: &Instance) {
         unsafe {
+            self.commands.destroy(&self.device);
             for framebuffer in &self.frame_buffers {
                 self.device.destroy_framebuffer(*framebuffer, None);
             }
