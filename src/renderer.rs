@@ -51,7 +51,11 @@ impl Renderer {
         );
 
         // COMMAND :
-        let commands = RendererCommands::new(&device);
+        let mut commands = RendererCommands::new(&device);
+
+        // in draw ?
+        let idx = 0;
+        commands.record_command_buffer(&device, &render_pass, &frame_buffers[idx], &pipeline);
 
         Renderer {
             surface,

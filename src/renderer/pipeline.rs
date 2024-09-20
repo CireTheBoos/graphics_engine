@@ -1,5 +1,7 @@
 mod render_pass;
 
+use std::ops::Deref;
+
 use ash::vk::{
     ColorComponentFlags, CullModeFlags, FrontFace, GraphicsPipelineCreateInfo, Offset2D, Pipeline,
     PipelineCache, PipelineColorBlendAttachmentState, PipelineColorBlendStateCreateInfo,
@@ -17,6 +19,14 @@ use crate::shaders::ShaderManager;
 pub struct RendererPipeline {
     pub layout: PipelineLayout,
     graphics_pipeline: Pipeline,
+}
+
+// Deref to ash::vk::Pipeline
+impl Deref for RendererPipeline {
+    type Target = Pipeline;
+    fn deref(&self) -> &Self::Target {
+        &self.graphics_pipeline
+    }
 }
 
 impl RendererPipeline {
