@@ -74,6 +74,9 @@ impl ApplicationHandler for App {
                 // You only need to call this if you've determined that you need to redraw in
                 // applications which do not always need to. Applications that redraw continuously
                 // can render here instead.
+                if let Some(renderer) = &mut self.renderer {
+                    renderer.draw_frame();
+                }
                 self.window.as_ref().unwrap().request_redraw();
             }
             _event => {

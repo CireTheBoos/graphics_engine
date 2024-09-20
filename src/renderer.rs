@@ -4,7 +4,10 @@ mod pipeline;
 mod swapchain;
 
 use crate::instance::Instance;
-use ash::vk::{Extent2D, Framebuffer, FramebufferCreateInfo, ImageView, Queue, SurfaceKHR};
+use ash::vk::{
+    Extent2D, Fence, FenceCreateInfo, Framebuffer, FramebufferCreateInfo, ImageView, Queue,
+    Semaphore, SemaphoreCreateInfo, SurfaceKHR,
+};
 use commands::RendererCommands;
 pub use device::RendererDevice;
 use pipeline::{RendererPipeline, RendererRenderPass};
@@ -27,6 +30,9 @@ pub struct Renderer {
     frame_buffers: Vec<Framebuffer>,
     // commands
     commands: RendererCommands,
+    img_available_semaphor: Semaphore,
+    render_finished_semaphor: Semaphore,
+    in_flight_fence: Fence,
 }
 
 impl Renderer {
@@ -51,11 +57,9 @@ impl Renderer {
         );
 
         // COMMAND :
-        let mut commands = RendererCommands::new(&device);
-
-        // in draw ?
-        let idx = 0;
-        commands.record_command_buffer(&device, &render_pass, &frame_buffers[idx], &pipeline);
+        let commands = RendererCommands::new(&device);
+        let (img_available_semaphor, render_finished_semaphor, in_flight_fence) =
+            create_sync_objects(&device);
 
         Renderer {
             surface,
@@ -68,12 +72,20 @@ impl Renderer {
             pipeline,
             frame_buffers,
             commands,
+            img_available_semaphor,
+            render_finished_semaphor,
+            in_flight_fence,
         }
     }
 
     // Destroy views, swapchain, surface (order matters)
     pub fn destroy(&mut self, instance: &Instance) {
         unsafe {
+            self.device
+                .destroy_semaphore(self.img_available_semaphor, None);
+            self.device
+                .destroy_semaphore(self.render_finished_semaphor, None);
+            self.device.destroy_fence(self.in_flight_fence, None);
             self.commands.destroy(&self.device);
             for framebuffer in &self.frame_buffers {
                 self.device.destroy_framebuffer(*framebuffer, None);
@@ -90,6 +102,8 @@ impl Renderer {
             self.device.destroy();
         }
     }
+
+    pub fn draw_frame(&mut self) {}
 }
 
 fn create_frame_buffers(
@@ -114,4 +128,22 @@ fn create_frame_buffers(
                 .expect("Failed to create framebuffer.")
         })
         .collect()
+}
+
+fn create_sync_objects(device: &RendererDevice) -> (Semaphore, Semaphore, Fence) {
+    let semaphore_create_info = SemaphoreCreateInfo::default();
+    let fence_create_info = FenceCreateInfo::default();
+
+    let img_available_semaphor = unsafe { device.create_semaphore(&semaphore_create_info, None) }
+        .expect("Failed to create semaphore.");
+    let render_finished_semaphor = unsafe { device.create_semaphore(&semaphore_create_info, None) }
+        .expect("Failed to create semaphore.");
+    let in_flight_fence =
+        unsafe { device.create_fence(&fence_create_info, None) }.expect("Failed to create fence.");
+
+    (
+        img_available_semaphor,
+        render_finished_semaphor,
+        in_flight_fence,
+    )
 }
