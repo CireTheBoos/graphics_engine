@@ -18,8 +18,9 @@ pub struct Renderer {
     present_queue: Queue,
     // presentation
     swapchain: RendererSwapchain,
-    image_views: Vec<ImageView>,
     // computation
+    image_views: Vec<ImageView>,
+    render_pass: RendererRenderPass,
     pipeline: RendererPipeline,
     // ???
     frame_buffers: Vec<Framebuffer>,
@@ -32,17 +33,18 @@ impl Renderer {
         let graphics_queue = unsafe { device.get_device_queue(device.infos.graphics_idx, 0) };
         let present_queue = unsafe { device.get_device_queue(device.infos.present_idx, 0) };
 
-        // PRESENTATION : Create swapchain and image views
+        // PRESENTATION : Create swapchain
         let swapchain = RendererSwapchain::new(&device, &surface);
-        let image_views = swapchain.get_image_views(&device);
 
-        // COMPUTATION : Create pipeline
-        let pipeline = RendererPipeline::new(&device);
+        // COMPUTATION : Create pipeline, image views
+        let image_views = swapchain.get_image_views(&device);
+        let render_pass = RendererRenderPass::new(&device);
+        let pipeline = RendererPipeline::new(&device, &render_pass);
 
         // Create frame buffers
         let frame_buffers = create_frame_buffers(
             &image_views,
-            &pipeline.render_pass,
+            &render_pass,
             &device.infos.capabilities.current_extent,
             &device,
         );
@@ -50,10 +52,11 @@ impl Renderer {
         Renderer {
             surface,
             device,
-            swapchain,
-            image_views,
             graphics_queue,
             present_queue,
+            swapchain,
+            image_views,
+            render_pass,
             pipeline,
             frame_buffers,
         }
@@ -65,6 +68,7 @@ impl Renderer {
             for framebuffer in &self.frame_buffers {
                 self.device.destroy_framebuffer(*framebuffer, None);
             }
+            self.device.destroy_render_pass(*self.render_pass, None);
             self.pipeline.destroy(&self.device);
             for image_view in &self.image_views {
                 self.device.destroy_image_view(*image_view, None);

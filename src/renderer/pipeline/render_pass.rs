@@ -1,9 +1,8 @@
 use std::ops::Deref;
 
 use ash::vk::{
-    AttachmentDescription, AttachmentLoadOp, AttachmentReference, AttachmentStoreOp, Format,
-    ImageLayout, PipelineBindPoint, RenderPass, RenderPassCreateInfo, SampleCountFlags,
-    SubpassDescription,
+    AttachmentDescription, AttachmentLoadOp, AttachmentReference, AttachmentStoreOp, ImageLayout,
+    PipelineBindPoint, RenderPass, RenderPassCreateInfo, SampleCountFlags, SubpassDescription,
 };
 
 use super::RendererDevice;
@@ -21,10 +20,10 @@ impl Deref for RendererRenderPass {
 }
 
 impl RendererRenderPass {
-    pub fn new(device: &RendererDevice, format: &Format) -> RendererRenderPass {
-        // SPECIFY : out only attachment
+    pub fn new(device: &RendererDevice) -> RendererRenderPass {
+        // SPECIFY : 1 attachment
         let color_attachment = AttachmentDescription::default()
-            .format(*format)
+            .format(device.infos.surface_format.format)
             .samples(SampleCountFlags::TYPE_1)
             .load_op(AttachmentLoadOp::CLEAR)
             .store_op(AttachmentStoreOp::STORE)
@@ -32,26 +31,24 @@ impl RendererRenderPass {
             .stencil_store_op(AttachmentStoreOp::DONT_CARE)
             .initial_layout(ImageLayout::UNDEFINED)
             .final_layout(ImageLayout::PRESENT_SRC_KHR);
-
-        // CREATE : subpass
+        let color_attachments = [color_attachment];
         let attachment_ref = AttachmentReference::default()
             .attachment(0)
             .layout(ImageLayout::COLOR_ATTACHMENT_OPTIMAL);
-
         let color_attachments_refs = [attachment_ref];
+
+        // CREATE : subpass
         let subpass = SubpassDescription::default()
             .pipeline_bind_point(PipelineBindPoint::GRAPHICS)
             .color_attachments(&color_attachments_refs);
-
         let subpasses = [subpass];
-        let color_attachments = [color_attachment];
+
+        // CREATE : render pass
         let create_info = RenderPassCreateInfo::default()
             .attachments(&color_attachments)
             .subpasses(&subpasses);
-
         let render_pass = unsafe { device.create_render_pass(&create_info, None) }
             .expect("Failed to create render pass.");
-
         RendererRenderPass { render_pass }
     }
 }

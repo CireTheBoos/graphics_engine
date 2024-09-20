@@ -34,19 +34,23 @@ impl RendererSwapchain {
                 infos.capabilities.min_image_count + 1
             };
 
-        // SPECIFY : a bunch of things
+        // SPECIFY : behaviour, image format
         let mut create_info = SwapchainCreateInfoKHR::default()
-            .surface(*surface)
+            // Behaviour
             .min_image_count(min_image_count)
+            .present_mode(infos.present_mode)
+            .pre_transform(infos.capabilities.current_transform)
+            // Image format (all compatible with surface)
+            .surface(*surface)
             .image_format(infos.surface_format.format)
             .image_color_space(infos.surface_format.color_space)
             .image_extent(infos.capabilities.current_extent)
-            .image_array_layers(1)
-            .present_mode(infos.present_mode)
-            .image_usage(ImageUsageFlags::COLOR_ATTACHMENT)
-            .pre_transform(infos.capabilities.current_transform)
+            // interactions with other windows (I don't use)
+            .clipped(true) // skip pxls culled by another window
             .composite_alpha(CompositeAlphaFlagsKHR::OPAQUE)
-            .clipped(true)
+            // others (I don't use)
+            .image_array_layers(1)
+            .image_usage(ImageUsageFlags::COLOR_ATTACHMENT)
             .old_swapchain(SwapchainKHR::null());
 
         // SPECIFY : queues sharing mode
@@ -56,7 +60,7 @@ impl RendererSwapchain {
                 .image_sharing_mode(SharingMode::CONCURRENT)
                 .queue_family_indices(&queues);
         } else {
-            create_info = create_info.image_sharing_mode(SharingMode::EXCLUSIVE)
+            create_info = create_info.image_sharing_mode(SharingMode::EXCLUSIVE);
         }
 
         // CREATE : swapchain

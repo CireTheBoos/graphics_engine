@@ -15,16 +15,12 @@ use super::device::RendererDevice;
 use crate::shaders::ShaderManager;
 
 pub struct RendererPipeline {
-    pub render_pass: RendererRenderPass,
     pub layout: PipelineLayout,
     graphics_pipeline: Pipeline,
 }
 
 impl RendererPipeline {
-    pub fn new(device: &RendererDevice) -> RendererPipeline {
-        // Create render pass
-        let render_pass = RendererRenderPass::new(&device, &device.infos.surface_format.format);
-
+    pub fn new(device: &RendererDevice, render_pass: &RendererRenderPass) -> RendererPipeline {
         let extent = &device.infos.capabilities.current_extent;
 
         // compiling shaders
@@ -85,9 +81,6 @@ impl RendererPipeline {
             .sample_shading_enable(false)
             .rasterization_samples(SampleCountFlags::TYPE_1);
 
-        // or pass null ptr ? or pass nothing ?
-        // let depth_stencil_state = ??
-
         let color_blend_attachment = PipelineColorBlendAttachmentState::default()
             .color_write_mask(ColorComponentFlags::RGBA)
             .blend_enable(false);
@@ -125,7 +118,6 @@ impl RendererPipeline {
         unsafe { device.destroy_shader_module(vertex, None) };
         unsafe { device.destroy_shader_module(fragment, None) };
         RendererPipeline {
-            render_pass,
             layout,
             graphics_pipeline: graphics_pipelines[0],
         }
@@ -133,7 +125,6 @@ impl RendererPipeline {
 
     pub fn destroy(&self, device: &RendererDevice) {
         unsafe {
-            device.destroy_render_pass(*self.render_pass, None);
             device.destroy_pipeline_layout(self.layout, None);
             device.destroy_pipeline(self.graphics_pipeline, None);
         }
