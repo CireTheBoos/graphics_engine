@@ -12,7 +12,7 @@ use ash::vk::{
     SemaphoreCreateInfo, SubmitInfo, SurfaceKHR,
 };
 use commands::RendererCommands;
-pub use device::RendererDevice;
+pub use device::Device;
 use pipeline::{RendererPipeline, RendererRenderPass};
 use swapchain::RendererSwapchain;
 
@@ -21,7 +21,7 @@ use swapchain::RendererSwapchain;
 // - Presents them continuously on the surface
 pub struct Renderer {
     surface: SurfaceKHR,
-    device: RendererDevice,
+    device: Device,
     graphics_queue: Queue,
     present_queue: Queue,
     // presentation
@@ -41,7 +41,7 @@ pub struct Renderer {
 impl Renderer {
     pub fn new(instance: &Instance, surface: SurfaceKHR) -> Renderer {
         // Create device and queues
-        let device = RendererDevice::new(instance, &surface);
+        let device = Device::new(instance, &surface);
         let graphics_queue = unsafe { device.get_device_queue(device.infos.graphics_idx, 0) };
         let present_queue = unsafe { device.get_device_queue(device.infos.present_idx, 0) };
 
@@ -103,7 +103,6 @@ impl Renderer {
                 .swapchain_khr()
                 .destroy_swapchain(*self.swapchain, None);
             instance.surface_khr().destroy_surface(self.surface, None);
-            self.device.destroy();
         }
     }
 
@@ -179,7 +178,7 @@ fn create_frame_buffers(
     image_views: &Vec<ImageView>,
     render_pass: &RendererRenderPass,
     extent: &Extent2D,
-    device: &RendererDevice,
+    device: &Device,
 ) -> Vec<Framebuffer> {
     image_views
         .iter()
@@ -199,7 +198,7 @@ fn create_frame_buffers(
         .collect()
 }
 
-fn create_sync_objects(device: &RendererDevice) -> (Semaphore, Semaphore, Fence) {
+fn create_sync_objects(device: &Device) -> (Semaphore, Semaphore, Fence) {
     let semaphore_create_info = SemaphoreCreateInfo::default();
     let fence_create_info = FenceCreateInfo::default().flags(FenceCreateFlags::SIGNALED);
 

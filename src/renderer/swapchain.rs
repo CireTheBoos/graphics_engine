@@ -6,7 +6,7 @@ use ash::vk::{
     SharingMode, SurfaceKHR, SwapchainCreateInfoKHR, SwapchainKHR,
 };
 
-use super::device::RendererDevice;
+use super::device::Device;
 
 pub struct RendererSwapchain {
     swapchain: SwapchainKHR,
@@ -22,7 +22,7 @@ impl Deref for RendererSwapchain {
 }
 
 impl RendererSwapchain {
-    pub fn new(device: &RendererDevice, surface: &SurfaceKHR) -> RendererSwapchain {
+    pub fn new(device: &Device, surface: &SurfaceKHR) -> RendererSwapchain {
         // device data
         let infos = &device.infos;
 
@@ -74,7 +74,7 @@ impl RendererSwapchain {
         RendererSwapchain { swapchain, images }
     }
 
-    pub fn get_image_views(&self, device: &RendererDevice) -> Vec<ImageView> {
+    pub fn get_image_views(&self, device: &Device) -> Vec<ImageView> {
         self.images
             .iter()
             .map(|image| {

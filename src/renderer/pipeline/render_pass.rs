@@ -6,7 +6,7 @@ use ash::vk::{
     SampleCountFlags, SubpassDependency, SubpassDescription, SUBPASS_EXTERNAL,
 };
 
-use super::RendererDevice;
+use super::Device;
 
 pub struct RendererRenderPass {
     pub render_pass: RenderPass,
@@ -21,7 +21,7 @@ impl Deref for RendererRenderPass {
 }
 
 impl RendererRenderPass {
-    pub fn new(device: &RendererDevice) -> RendererRenderPass {
+    pub fn new(device: &Device) -> RendererRenderPass {
         // SPECIFY : 1 attachment
         let color_attachment = AttachmentDescription::default()
             .format(device.infos.surface_format.format)

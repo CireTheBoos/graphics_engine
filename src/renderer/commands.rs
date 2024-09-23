@@ -6,7 +6,7 @@ use ash::vk::{
 
 use super::{
     pipeline::{RendererPipeline, RendererRenderPass},
-    RendererDevice,
+    Device,
 };
 
 pub struct RendererCommands {
@@ -15,7 +15,7 @@ pub struct RendererCommands {
 }
 
 impl RendererCommands {
-    pub fn new(device: &RendererDevice) -> RendererCommands {
+    pub fn new(device: &Device) -> RendererCommands {
         let command_pool = create_command_pool(device);
         let command_buffer = create_command_buffer(device, &command_pool);
         RendererCommands {
@@ -24,13 +24,13 @@ impl RendererCommands {
         }
     }
 
-    pub fn destroy(&mut self, device: &RendererDevice) {
+    pub fn destroy(&mut self, device: &Device) {
         unsafe { device.destroy_command_pool(self.command_pool, None) };
     }
 
     pub fn record_command_buffer(
         &mut self,
-        device: &RendererDevice,
+        device: &Device,
         render_pass: &RendererRenderPass,
         framebuffer: &Framebuffer,
         pipeline: &RendererPipeline,
@@ -76,7 +76,7 @@ impl RendererCommands {
     }
 }
 
-fn create_command_pool(device: &RendererDevice) -> CommandPool {
+fn create_command_pool(device: &Device) -> CommandPool {
     let create_info = CommandPoolCreateInfo::default()
         .queue_family_index(device.infos.graphics_idx)
         .flags(CommandPoolCreateFlags::RESET_COMMAND_BUFFER);
@@ -85,7 +85,7 @@ fn create_command_pool(device: &RendererDevice) -> CommandPool {
         .expect("Failed to create command pool.")
 }
 
-fn create_command_buffer(device: &RendererDevice, command_pool: &CommandPool) -> CommandBuffer {
+fn create_command_buffer(device: &Device, command_pool: &CommandPool) -> CommandBuffer {
     let allocate_info = CommandBufferAllocateInfo::default()
         .command_pool(*command_pool)
         .level(CommandBufferLevel::PRIMARY)

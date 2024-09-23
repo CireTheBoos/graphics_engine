@@ -13,7 +13,7 @@ use ash::vk::{
 };
 pub use render_pass::RendererRenderPass;
 
-use super::device::RendererDevice;
+use super::device::Device;
 use crate::shaders::ShaderManager;
 
 pub struct RendererPipeline {
@@ -30,7 +30,7 @@ impl Deref for RendererPipeline {
 }
 
 impl RendererPipeline {
-    pub fn new(device: &RendererDevice, render_pass: &RendererRenderPass) -> RendererPipeline {
+    pub fn new(device: &Device, render_pass: &RendererRenderPass) -> RendererPipeline {
         let extent = &device.infos.capabilities.current_extent;
 
         // compiling shaders
@@ -133,7 +133,7 @@ impl RendererPipeline {
         }
     }
 
-    pub fn destroy(&self, device: &RendererDevice) {
+    pub fn destroy(&self, device: &Device) {
         unsafe {
             device.destroy_pipeline_layout(self.layout, None);
             device.destroy_pipeline(self.graphics_pipeline, None);

@@ -1,7 +1,7 @@
 use ash::vk::{ShaderModule, ShaderModuleCreateInfo};
 use shaderc::{Compiler, ShaderKind};
 
-use super::renderer::RendererDevice;
+use super::renderer::Device;
 
 const VERTEX_SHADER_SRC: &str = "
 #version 450
@@ -40,11 +40,11 @@ void main() {
 
 pub struct ShaderManager<'a> {
     compiler: Compiler,
-    device: &'a RendererDevice,
+    device: &'a Device,
 }
 
 impl ShaderManager<'_> {
-    pub fn new<'a>(device: &'a RendererDevice) -> ShaderManager<'a> {
+    pub fn new<'a>(device: &'a Device) -> ShaderManager<'a> {
         let compiler = Compiler::new().unwrap();
         ShaderManager { compiler, device }
     }

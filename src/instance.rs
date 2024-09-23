@@ -1,6 +1,6 @@
 use ash::{
     vk::{self, ApplicationInfo, ExtensionProperties, InstanceCreateInfo, LayerProperties},
-    Entry, Instance as AshInstance,
+    Entry,
 };
 use std::{
     ffi::{c_char, CStr},
@@ -9,23 +9,27 @@ use std::{
 use winit::raw_window_handle::RawDisplayHandle;
 
 const LAYERS: [*const c_char; 1] = [c"VK_LAYER_KHRONOS_validation".as_ptr()];
-const _INSTANCE_EXTENSIONS: [*const c_char; 0] = [];
 
-// Wrapper around ash::Instance : can provide instance-level extension vk fns
+// Custom instance for presenting :
+// - Appropriate extensions for presenting on "raw_display_handle"
+// - Hold entry => It's the only instance
+// - Validation layers on Debug
 pub struct Instance {
     entry: Entry,
-    instance: AshInstance,
+    instance: ash::Instance,
+    // surfaceKHR instance-level methods
+    surface_khr_instance: ash::khr::surface::Instance,
 }
 
-// Deref to ash::Instance
+// Deref : ash::Instance
 impl Deref for Instance {
-    type Target = AshInstance;
+    type Target = ash::Instance;
     fn deref(&self) -> &Self::Target {
         &self.instance
     }
 }
 
-// Destroy instance
+// Drop : Destroy instance
 impl Drop for Instance {
     fn drop(&mut self) {
         unsafe { self.destroy_instance(None) };
@@ -36,20 +40,25 @@ impl Instance {
     pub fn new(raw_display_handle: RawDisplayHandle) -> Instance {
         let entry: Entry = unsafe { Entry::load().expect("Failed to load vulkan.") };
         let instance = create_instance(&entry, raw_display_handle);
-        Instance { entry, instance }
+        let surface_khr_instance = ash::khr::surface::Instance::new(&entry, &instance);
+        Instance {
+            entry,
+            instance,
+            surface_khr_instance,
+        }
     }
 
     pub fn entry(&self) -> &Entry {
         &self.entry
     }
 
-    pub fn surface_khr(&self) -> ash::khr::surface::Instance {
-        ash::khr::surface::Instance::new(&self.entry, &self.instance)
+    pub fn surface_khr(&self) -> &ash::khr::surface::Instance {
+        &self.surface_khr_instance
     }
 }
 
-fn create_instance(entry: &Entry, raw_display_handle: RawDisplayHandle) -> AshInstance {
-    // SPECIFY : layers (check availability)
+fn create_instance(entry: &Entry, raw_display_handle: RawDisplayHandle) -> ash::Instance {
+    // SPECIFY : layers (and check availability)
     let mut layers: Vec<*const c_char> = Vec::new();
     if cfg!(debug_assertions) {
         layers.push(LAYERS[0]);
@@ -62,22 +71,19 @@ fn create_instance(entry: &Entry, raw_display_handle: RawDisplayHandle) -> AshIn
         }
     }
 
-    // SPECIFY : extensions (check availability)
-    let display_extensions = ash_window::enumerate_required_extensions(raw_display_handle)
+    // SPECIFY : extensions (and check availability)
+    let extensions = ash_window::enumerate_required_extensions(raw_display_handle)
         .expect("Failed to get graphics extensions from display.");
-    let extensions = [display_extensions, &_INSTANCE_EXTENSIONS].concat();
     let available_extensions = unsafe { entry.enumerate_instance_extension_properties(None) }
         .expect("Failed to get available extensions.");
-    for extension in &extensions {
+    for extension in extensions {
         if !is_extension_available(*extension, &available_extensions) {
             panic!("Some extensions are not supported.")
         }
     }
 
     // SPECIFY : application info
-    let application_info = ApplicationInfo::default()
-        .api_version(vk::make_api_version(0, 1, 3, 0))
-        .application_name(c"Vulkan test");
+    let application_info = ApplicationInfo::default().api_version(vk::make_api_version(0, 1, 3, 0));
 
     // CREATE : instance
     let create_info = InstanceCreateInfo::default()

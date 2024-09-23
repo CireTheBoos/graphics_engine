@@ -11,53 +11,59 @@ use std::{
 
 const SWAPCHAIN_KHR_EXTENSION: *const c_char = c"VK_KHR_swapchain".as_ptr();
 
-// Device made for rendering
-pub struct RendererDevice {
+// Custom device for rendering :
+// - swapchainKHR extension for presenting on "surface"
+// - Hold infos about the physical device in use
+// - Hold indices for graphics and presenting
+pub struct Device {
     device: ash::Device,
-    // extension of ash::Device for swapchain vk fns
+    // swapchainKHR device-level methods
     swapchain_khr_device: ash::khr::swapchain::Device,
     pub infos: PhysicalDeviceInfos,
-}
-
-// Deref to ash::Device
-impl Deref for RendererDevice {
-    type Target = ash::Device;
-    fn deref(&self) -> &Self::Target {
-        &self.device
-    }
-}
-
-impl RendererDevice {
-    pub fn new(instance: &Instance, surface: &SurfaceKHR) -> RendererDevice {
-        let infos = select_physical_device(instance, surface)
-            .expect("Failed to find a suitable physical device.");
-        let device = create_device(instance, &infos);
-        let swapchain_khr_device = ash::khr::swapchain::Device::new(instance, &device);
-        RendererDevice {
-            device,
-            swapchain_khr_device,
-            infos,
-        }
-    }
-
-    pub fn destroy(&mut self) {
-        unsafe { self.destroy_device(None) };
-    }
-
-    pub fn swapchain_khr(&self) -> &ash::khr::swapchain::Device {
-        &self.swapchain_khr_device
-    }
 }
 
 #[derive(Debug)]
 pub struct PhysicalDeviceInfos {
     physical_device: PhysicalDevice,
     score: u32,
-    pub graphics_idx: u32,
     pub present_idx: u32,
+    pub graphics_idx: u32,
     pub capabilities: SurfaceCapabilitiesKHR,
     pub surface_format: SurfaceFormatKHR,
     pub present_mode: PresentModeKHR,
+}
+
+// Deref : ash::Device
+impl Deref for Device {
+    type Target = ash::Device;
+    fn deref(&self) -> &Self::Target {
+        &self.device
+    }
+}
+
+// Drop : Destroy device
+impl Drop for Device {
+    fn drop(&mut self) {
+        unsafe { self.destroy_device(None) };
+    }
+}
+
+impl Device {
+    pub fn new(instance: &Instance, surface: &SurfaceKHR) -> Device {
+        let infos = select_physical_device(instance, surface)
+            .expect("Failed to find a suitable physical device.");
+        let device = create_device(instance, &infos);
+        let swapchain_khr_device = ash::khr::swapchain::Device::new(instance, &device);
+        Device {
+            device,
+            swapchain_khr_device,
+            infos,
+        }
+    }
+
+    pub fn swapchain_khr(&self) -> &ash::khr::swapchain::Device {
+        &self.swapchain_khr_device
+    }
 }
 
 fn create_device(instance: &Instance, infos: &PhysicalDeviceInfos) -> ash::Device {
