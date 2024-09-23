@@ -13,8 +13,8 @@ use ash::vk::{
 };
 pub use render_pass::RendererRenderPass;
 
-use super::device::Device;
-use crate::shaders::ShaderManager;
+use super::shaders::ShaderManager;
+use super::Device;
 
 pub struct RendererPipeline {
     pub layout: PipelineLayout,

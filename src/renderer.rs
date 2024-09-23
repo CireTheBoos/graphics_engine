@@ -1,6 +1,7 @@
 mod commands;
 mod device;
 mod pipeline;
+mod shaders;
 mod swapchain;
 
 use std::u64;

@@ -1,6 +1,5 @@
 mod instance;
 mod renderer;
-mod shaders;
 
 use ash::vk::SurfaceKHR;
 use instance::Instance;
