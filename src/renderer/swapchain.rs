@@ -8,21 +8,21 @@ use ash::vk::{
 
 use super::device::Device;
 
-pub struct RendererSwapchain {
+pub struct Swapchain {
     swapchain: SwapchainKHR,
     images: Vec<Image>,
 }
 
-// Deref to ash::vk::SwapchainKHR
-impl Deref for RendererSwapchain {
+// Deref : ash::vk::SwapchainKHR
+impl Deref for Swapchain {
     type Target = SwapchainKHR;
     fn deref(&self) -> &Self::Target {
         &self.swapchain
     }
 }
 
-impl RendererSwapchain {
-    pub fn new(device: &Device, surface: &SurfaceKHR) -> RendererSwapchain {
+impl Swapchain {
+    pub fn new(device: &Device, surface: &SurfaceKHR) -> Swapchain {
         // device data
         let infos = &device.infos;
 
@@ -71,7 +71,7 @@ impl RendererSwapchain {
         let images = unsafe { device.swapchain_khr().get_swapchain_images(swapchain) }
             .expect("Failed to extract images.");
 
-        RendererSwapchain { swapchain, images }
+        Swapchain { swapchain, images }
     }
 
     pub fn get_image_views(&self, device: &Device) -> Vec<ImageView> {

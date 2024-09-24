@@ -12,12 +12,11 @@ use std::{
 const SWAPCHAIN_KHR_EXTENSION: *const c_char = c"VK_KHR_swapchain".as_ptr();
 
 // Custom device for rendering :
-// - swapchainKHR extension for presenting on "surface"
+// - swapchainKHR extension + support for presenting on "surface"
 // - Hold infos about the physical device in use
-// - Hold indices for graphics and presenting
 pub struct Device {
     device: ash::Device,
-    // swapchainKHR device-level methods
+    // swapchainKHR extension fns
     swapchain_khr_device: ash::khr::swapchain::Device,
     pub infos: PhysicalDeviceInfos,
 }
@@ -67,28 +66,21 @@ impl Device {
 }
 
 fn create_device(instance: &Instance, infos: &PhysicalDeviceInfos) -> ash::Device {
-    // SPECIFY : queues
-    let queue_create_infos =
-    // 1 queue for graphics and present
-    if infos.graphics_idx == infos.present_idx {
-        let graphics_present_info = vk::DeviceQueueCreateInfo::default()
-            .queue_family_index(infos.graphics_idx)
-            .queue_priorities(&[0.5]);
-        vec![graphics_present_info]
-    }
-    // 1 queue for graphics, 1 queue for present
-    else {
-        let graphics_info = vk::DeviceQueueCreateInfo::default()
-            .queue_family_index(infos.graphics_idx)
-            .queue_priorities(&[0.5]);
-        let present_info = vk::DeviceQueueCreateInfo::default()
-            .queue_family_index(infos.present_idx)
-            .queue_priorities(&[0.5]);
-        vec![graphics_info,present_info]
-    };
+    // SPECIFY : queues requested for each queue family
+    let graphics_queues_info = vk::DeviceQueueCreateInfo::default()
+        .queue_family_index(infos.graphics_idx)
+        .queue_priorities(&[0.5]);
+    let present_queues_info = vk::DeviceQueueCreateInfo::default()
+        .queue_family_index(infos.present_idx)
+        .queue_priorities(&[0.5]);
+    let mut queue_create_infos = vec![graphics_queues_info, present_queues_info];
+    // removes duplicates
+    queue_create_infos.sort_by_key(|info| info.queue_family_index);
+    queue_create_infos.dedup_by_key(|info| info.queue_family_index);
 
     // SPECIFY : extensions
-    let extensions = [SWAPCHAIN_KHR_EXTENSION];
+    let swapchain_extension = vec![SWAPCHAIN_KHR_EXTENSION];
+    let extensions = [swapchain_extension].concat();
 
     // CREATE : device
     let create_info = vk::DeviceCreateInfo::default()

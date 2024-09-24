@@ -15,7 +15,7 @@ use ash::vk::{
 use commands::RendererCommands;
 pub use device::Device;
 use pipeline::{RendererPipeline, RendererRenderPass};
-use swapchain::RendererSwapchain;
+use swapchain::Swapchain;
 
 // Given a surface :
 // - Computes imgs from input data (adapted to the surface)
@@ -23,11 +23,11 @@ use swapchain::RendererSwapchain;
 pub struct Renderer {
     surface: SurfaceKHR,
     device: Device,
-    graphics_queue: Queue,
-    present_queue: Queue,
     // presentation
-    swapchain: RendererSwapchain,
+    present_queue: Queue,
+    swapchain: Swapchain,
     // computation
+    graphics_queue: Queue,
     image_views: Vec<ImageView>,
     render_pass: RendererRenderPass,
     pipeline: RendererPipeline,
@@ -47,7 +47,7 @@ impl Renderer {
         let present_queue = unsafe { device.get_device_queue(device.infos.present_idx, 0) };
 
         // PRESENTATION : Create swapchain
-        let swapchain = RendererSwapchain::new(&device, &surface);
+        let swapchain = Swapchain::new(&device, &surface);
 
         // COMPUTATION : Create pipeline, image views
         let image_views = swapchain.get_image_views(&device);

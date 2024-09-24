@@ -60,6 +60,7 @@ impl ApplicationHandler for App {
             WindowEvent::CloseRequested => {
                 self.renderer.as_mut().unwrap().destroy(&self.instance);
                 self.renderer = None;
+                self.window = None;
                 event_loop.exit();
             }
             WindowEvent::RedrawRequested => {

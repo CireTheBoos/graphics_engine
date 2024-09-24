@@ -8,16 +8,16 @@ use std::{
 };
 use winit::raw_window_handle::RawDisplayHandle;
 
-const LAYERS: [*const c_char; 1] = [c"VK_LAYER_KHRONOS_validation".as_ptr()];
+const VALIDATION_LAYER: *const c_char = c"VK_LAYER_KHRONOS_validation".as_ptr();
 
 // Custom instance for presenting :
-// - Appropriate extensions for presenting on "raw_display_handle"
+// - Appropriate extensions for creating surfaces from "raw_display_handle" => surfaceKHR extension
 // - Hold entry => It's the only instance
 // - Validation layers on Debug
 pub struct Instance {
     entry: Entry,
     instance: ash::Instance,
-    // surfaceKHR instance-level methods
+    // surfaceKHR extension fns
     surface_khr_instance: ash::khr::surface::Instance,
 }
 
@@ -58,11 +58,14 @@ impl Instance {
 }
 
 fn create_instance(entry: &Entry, raw_display_handle: RawDisplayHandle) -> ash::Instance {
-    // SPECIFY : layers (and check availability)
-    let mut layers: Vec<*const c_char> = Vec::new();
-    if cfg!(debug_assertions) {
-        layers.push(LAYERS[0]);
-    }
+    // SPECIFY : layers
+    let validation_layer = if cfg!(debug_assertions) {
+        vec![VALIDATION_LAYER]
+    } else {
+        Vec::new()
+    };
+    let layers = [validation_layer].concat();
+    // availability check (panic if unavailables)
     let available_layers = unsafe { entry.enumerate_instance_layer_properties() }
         .expect("Failed to get available layers.");
     for layer in &layers {
@@ -71,12 +74,15 @@ fn create_instance(entry: &Entry, raw_display_handle: RawDisplayHandle) -> ash::
         }
     }
 
-    // SPECIFY : extensions (and check availability)
-    let extensions = ash_window::enumerate_required_extensions(raw_display_handle)
-        .expect("Failed to get graphics extensions from display.");
+    // SPECIFY : extensions
+    let surface_extensions = ash_window::enumerate_required_extensions(raw_display_handle)
+        .expect("Failed to get graphics extensions from display.")
+        .to_vec();
+    let extensions = [surface_extensions].concat();
+    // availability check (panic if unavailables)
     let available_extensions = unsafe { entry.enumerate_instance_extension_properties(None) }
         .expect("Failed to get available extensions.");
-    for extension in extensions {
+    for extension in &extensions {
         if !is_extension_available(*extension, &available_extensions) {
             panic!("Some extensions are not supported.")
         }
