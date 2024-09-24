@@ -8,9 +8,10 @@ use std::u64;
 
 use crate::instance::Instance;
 use ash::vk::{
-    CommandBufferResetFlags, Extent2D, Fence, FenceCreateFlags, FenceCreateInfo, Framebuffer,
-    FramebufferCreateInfo, ImageView, PipelineStageFlags, PresentInfoKHR, Queue, Semaphore,
-    SemaphoreCreateInfo, SubmitInfo, SurfaceKHR,
+    CommandBufferResetFlags, ComponentMapping, ComponentSwizzle, Extent2D, Fence, FenceCreateFlags,
+    FenceCreateInfo, Framebuffer, FramebufferCreateInfo, Image, ImageAspectFlags,
+    ImageSubresourceRange, ImageView, ImageViewCreateInfo, ImageViewType, PipelineStageFlags,
+    PresentInfoKHR, Queue, Semaphore, SemaphoreCreateInfo, SubmitInfo, SurfaceKHR,
 };
 use commands::RendererCommands;
 pub use device::Device;
@@ -50,7 +51,7 @@ impl Renderer {
         let swapchain = Swapchain::new(&device, &surface);
 
         // COMPUTATION : Create pipeline, image views
-        let image_views = swapchain.get_image_views(&device);
+        let image_views = create_image_views(&device, &swapchain.images);
         let render_pass = RendererRenderPass::new(&device);
         let pipeline = RendererPipeline::new(&device, &render_pass);
         let frame_buffers = create_frame_buffers(
@@ -173,6 +174,36 @@ impl Renderer {
         }
         .expect("Failed to present image.");
     }
+}
+
+fn create_image_views(device: &Device, images: &Vec<Image>) -> Vec<ImageView> {
+    images
+        .iter()
+        .map(|image| {
+            let components = ComponentMapping::default()
+                .a(ComponentSwizzle::IDENTITY)
+                .r(ComponentSwizzle::IDENTITY)
+                .g(ComponentSwizzle::IDENTITY)
+                .b(ComponentSwizzle::IDENTITY);
+
+            let subresource_range = ImageSubresourceRange::default()
+                .aspect_mask(ImageAspectFlags::COLOR)
+                .base_mip_level(0)
+                .level_count(1)
+                .base_array_layer(0)
+                .layer_count(1);
+
+            let create_info = ImageViewCreateInfo::default()
+                .view_type(ImageViewType::TYPE_2D)
+                .image(*image)
+                .format(device.infos.surface_format.format)
+                .components(components)
+                .subresource_range(subresource_range);
+
+            unsafe { device.create_image_view(&create_info, None) }
+                .expect("Failed to create image view.")
+        })
+        .collect()
 }
 
 fn create_frame_buffers(

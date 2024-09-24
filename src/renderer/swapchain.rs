@@ -1,16 +1,15 @@
 use std::ops::Deref;
 
 use ash::vk::{
-    ComponentMapping, ComponentSwizzle, CompositeAlphaFlagsKHR, Image, ImageAspectFlags,
-    ImageSubresourceRange, ImageUsageFlags, ImageView, ImageViewCreateInfo, ImageViewType,
-    SharingMode, SurfaceKHR, SwapchainCreateInfoKHR, SwapchainKHR,
+    CompositeAlphaFlagsKHR, Image, ImageUsageFlags, SharingMode, SurfaceKHR,
+    SwapchainCreateInfoKHR, SwapchainKHR,
 };
 
 use super::device::Device;
 
 pub struct Swapchain {
     swapchain: SwapchainKHR,
-    images: Vec<Image>,
+    pub images: Vec<Image>,
 }
 
 // Deref : ash::vk::SwapchainKHR
@@ -23,7 +22,6 @@ impl Deref for Swapchain {
 
 impl Swapchain {
     pub fn new(device: &Device, surface: &SurfaceKHR) -> Swapchain {
-        // device data
         let infos = &device.infos;
 
         // SPECIFY : minimum image count (triple buffering if possible)
@@ -34,73 +32,40 @@ impl Swapchain {
                 infos.capabilities.min_image_count + 1
             };
 
-        // SPECIFY : behaviour, image format
-        let mut create_info = SwapchainCreateInfoKHR::default()
+        // SPECIFY : sharing mode
+        let image_sharing_mode = if infos.graphics_idx != infos.present_idx {
+            SharingMode::CONCURRENT
+        } else {
+            SharingMode::EXCLUSIVE
+        };
+        let queue_family_indices = [infos.graphics_idx, infos.present_idx];
+
+        // SPECIFY : behaviour, images
+        let create_info = SwapchainCreateInfoKHR::default()
             // Behaviour
-            .min_image_count(min_image_count)
-            .present_mode(infos.present_mode)
-            .pre_transform(infos.capabilities.current_transform)
-            // Image format (all compatible with surface)
             .surface(*surface)
+            .present_mode(infos.present_mode)
+            .min_image_count(min_image_count)
+            // Image : format, extent and usage (= how they will be updated)
             .image_format(infos.surface_format.format)
             .image_color_space(infos.surface_format.color_space)
             .image_extent(infos.capabilities.current_extent)
-            // interactions with other windows (I don't use)
-            .clipped(true) // skip pxls culled by another window
-            .composite_alpha(CompositeAlphaFlagsKHR::OPAQUE)
-            // others (I don't use)
-            .image_array_layers(1)
             .image_usage(ImageUsageFlags::COLOR_ATTACHMENT)
+            // Sharing mode
+            .queue_family_indices(&queue_family_indices)
+            .image_sharing_mode(image_sharing_mode)
+            // Others
+            .clipped(true)
+            .composite_alpha(CompositeAlphaFlagsKHR::OPAQUE)
+            .pre_transform(infos.capabilities.current_transform)
+            .image_array_layers(1)
             .old_swapchain(SwapchainKHR::null());
 
-        // SPECIFY : queues sharing mode
-        let queues = [infos.graphics_idx, infos.present_idx];
-        if infos.graphics_idx != infos.present_idx {
-            create_info = create_info
-                .image_sharing_mode(SharingMode::CONCURRENT)
-                .queue_family_indices(&queues);
-        } else {
-            create_info = create_info.image_sharing_mode(SharingMode::EXCLUSIVE);
-        }
-
-        // CREATE : swapchain
+        // CREATE : swapchain and images
         let swapchain = unsafe { device.swapchain_khr().create_swapchain(&create_info, None) }
             .expect("Failed to create swapchain.");
-
-        // CREATE : images
         let images = unsafe { device.swapchain_khr().get_swapchain_images(swapchain) }
             .expect("Failed to extract images.");
-
         Swapchain { swapchain, images }
-    }
-
-    pub fn get_image_views(&self, device: &Device) -> Vec<ImageView> {
-        self.images
-            .iter()
-            .map(|image| {
-                let components = ComponentMapping::default()
-                    .a(ComponentSwizzle::IDENTITY)
-                    .r(ComponentSwizzle::IDENTITY)
-                    .g(ComponentSwizzle::IDENTITY)
-                    .b(ComponentSwizzle::IDENTITY);
-
-                let subresource_range = ImageSubresourceRange::default()
-                    .aspect_mask(ImageAspectFlags::COLOR)
-                    .base_mip_level(0)
-                    .level_count(1)
-                    .base_array_layer(0)
-                    .layer_count(1);
-
-                let create_info = ImageViewCreateInfo::default()
-                    .view_type(ImageViewType::TYPE_2D)
-                    .image(*image)
-                    .format(device.infos.surface_format.format)
-                    .components(components)
-                    .subresource_range(subresource_range);
-
-                unsafe { device.create_image_view(&create_info, None) }
-                    .expect("Failed to create image view.")
-            })
-            .collect()
     }
 }
