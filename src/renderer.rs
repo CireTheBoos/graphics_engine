@@ -8,15 +8,16 @@ use std::u64;
 
 use crate::instance::Instance;
 use ash::vk::{
-    CommandBufferResetFlags, ComponentMapping, ComponentSwizzle, Extent2D, Fence, FenceCreateFlags,
-    FenceCreateInfo, Framebuffer, FramebufferCreateInfo, Image, ImageAspectFlags,
-    ImageSubresourceRange, ImageView, ImageViewCreateInfo, ImageViewType, PipelineStageFlags,
-    PresentInfoKHR, Queue, Semaphore, SemaphoreCreateInfo, SubmitInfo, SurfaceKHR,
+    CommandBufferResetFlags, ComponentMapping, Extent2D, Fence, FenceCreateFlags, FenceCreateInfo,
+    Framebuffer, FramebufferCreateInfo, Image, ImageAspectFlags, ImageSubresourceRange, ImageView,
+    ImageViewCreateInfo, ImageViewType, PipelineStageFlags, PresentInfoKHR, Queue, Semaphore,
+    SemaphoreCreateInfo, SubmitInfo, SurfaceKHR,
 };
 use commands::RendererCommands;
 pub use device::Device;
 use pipeline::{RendererPipeline, RendererRenderPass};
 use swapchain::Swapchain;
+use vk_mem::{Allocator, AllocatorCreateInfo};
 
 // Given a surface :
 // - Computes imgs from input data (adapted to the surface)
@@ -24,6 +25,7 @@ use swapchain::Swapchain;
 pub struct Renderer {
     surface: SurfaceKHR,
     device: Device,
+    allocator: Allocator,
     // presentation
     present_queue: Queue,
     swapchain: Swapchain,
@@ -47,6 +49,11 @@ impl Renderer {
         let graphics_queue = unsafe { device.get_device_queue(device.infos.graphics_idx, 0) };
         let present_queue = unsafe { device.get_device_queue(device.infos.present_idx, 0) };
 
+        // Create VMA allocator
+        let create_info = AllocatorCreateInfo::new(instance, &device, device.infos.physical_device);
+        let allocator =
+            unsafe { Allocator::new(create_info) }.expect("Failed to create allocator.");
+
         // PRESENTATION : Create swapchain
         let swapchain = Swapchain::new(&device, &surface);
 
@@ -69,6 +76,7 @@ impl Renderer {
         Renderer {
             surface,
             device,
+            allocator,
             graphics_queue,
             present_queue,
             swapchain,
@@ -180,11 +188,8 @@ fn create_image_views(device: &Device, images: &Vec<Image>) -> Vec<ImageView> {
     images
         .iter()
         .map(|image| {
-            let components = ComponentMapping::default()
-                .a(ComponentSwizzle::IDENTITY)
-                .r(ComponentSwizzle::IDENTITY)
-                .g(ComponentSwizzle::IDENTITY)
-                .b(ComponentSwizzle::IDENTITY);
+            // identity
+            let components = ComponentMapping::default();
 
             let subresource_range = ImageSubresourceRange::default()
                 .aspect_mask(ImageAspectFlags::COLOR)
@@ -194,11 +199,13 @@ fn create_image_views(device: &Device, images: &Vec<Image>) -> Vec<ImageView> {
                 .layer_count(1);
 
             let create_info = ImageViewCreateInfo::default()
-                .view_type(ImageViewType::TYPE_2D)
+                // view restrictions
                 .image(*image)
+                .view_type(ImageViewType::TYPE_2D)
+                .subresource_range(subresource_range)
+                // data interpretation
                 .format(device.infos.surface_format.format)
-                .components(components)
-                .subresource_range(subresource_range);
+                .components(components);
 
             unsafe { device.create_image_view(&create_info, None) }
                 .expect("Failed to create image view.")

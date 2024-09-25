@@ -23,7 +23,7 @@ pub struct Device {
 
 #[derive(Debug)]
 pub struct PhysicalDeviceInfos {
-    physical_device: PhysicalDevice,
+    pub physical_device: PhysicalDevice,
     score: u32,
     pub present_idx: u32,
     pub graphics_idx: u32,
