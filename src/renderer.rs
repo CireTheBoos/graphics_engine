@@ -3,17 +3,21 @@ mod device;
 mod pipeline;
 mod shaders;
 mod swapchain;
+mod syncer;
 
 use std::u64;
 
 use crate::instance::Instance;
 use ash::vk::{
-    ComponentMapping, Extent2D, Fence, FenceCreateFlags, FenceCreateInfo, Framebuffer, FramebufferCreateInfo, Image, ImageAspectFlags, ImageSubresourceRange, ImageView, ImageViewCreateInfo, ImageViewType, PipelineStageFlags, PresentInfoKHR, Queue, Semaphore, SemaphoreCreateInfo, SubmitInfo, SurfaceKHR
+    ComponentMapping, Extent2D, Fence, Framebuffer, FramebufferCreateInfo, Image, ImageAspectFlags,
+    ImageSubresourceRange, ImageView, ImageViewCreateInfo, ImageViewType, PipelineStageFlags,
+    PresentInfoKHR, Queue, SubmitInfo, SurfaceKHR,
 };
 use commander::Commander;
 pub use device::Device;
 use pipeline::{RendererPipeline, RendererRenderPass};
 use swapchain::Swapchain;
+use syncer::Syncer;
 use vk_mem::{Allocator, AllocatorCreateInfo};
 
 // Given a surface :
@@ -23,35 +27,35 @@ pub struct Renderer {
     surface: SurfaceKHR,
     device: Device,
     allocator: Allocator,
+    // Utils
     commander: Commander,
-    // TODO : syncer
-    // presentation
+    syncer: Syncer,
+    // TODO : dealer
+    // Presentation
     present_queue: Queue,
     swapchain: Swapchain,
-    // computation
+    // Computation
     graphics_queue: Queue,
     image_views: Vec<ImageView>,
     render_pass: RendererRenderPass,
     pipeline: RendererPipeline,
     frame_buffers: Vec<Framebuffer>,
-    // sync
-    img_available_semaphor: Semaphore,
-    render_finished_semaphor: Semaphore,
-    in_flight_fence: Fence,
 }
 
 impl Renderer {
     pub fn new(instance: &Instance, surface: SurfaceKHR) -> Renderer {
-        // Create device and allocator
         let device = Device::new(instance, &surface);
+
+        // Utils
         let allocator = create_allocator(instance, &device);
         let commander = Commander::new(&device);
+        let syncer = Syncer::new(&device);
 
-        // PRESENTATION : Create swapchain
+        // Presentation
         let swapchain = Swapchain::new(&device, &surface);
         let present_queue = unsafe { device.get_device_queue(device.infos.present_idx, 0) };
 
-        // COMPUTATION : Create pipeline, image views
+        // Computation
         let graphics_queue = unsafe { device.get_device_queue(device.infos.graphics_idx, 0) };
         let image_views = create_image_views(&device, &swapchain.images);
         let render_pass = RendererRenderPass::new(&device);
@@ -63,15 +67,12 @@ impl Renderer {
             &device,
         );
 
-        // SYNC
-        let (img_available_semaphor, render_finished_semaphor, in_flight_fence) =
-            create_sync_objects(&device);
-
         Renderer {
             surface,
             device,
             allocator,
             commander,
+            syncer,
             graphics_queue,
             present_queue,
             swapchain,
@@ -79,9 +80,6 @@ impl Renderer {
             render_pass,
             pipeline,
             frame_buffers,
-            img_available_semaphor,
-            render_finished_semaphor,
-            in_flight_fence,
         }
     }
 
@@ -89,11 +87,7 @@ impl Renderer {
     pub fn destroy(&mut self, instance: &Instance) {
         unsafe {
             self.device.device_wait_idle().unwrap();
-            self.device
-                .destroy_semaphore(self.img_available_semaphor, None);
-            self.device
-                .destroy_semaphore(self.render_finished_semaphor, None);
-            self.device.destroy_fence(self.in_flight_fence, None);
+            self.syncer.destroy(&self.device);
             self.commander.destroy(&self.device);
             for framebuffer in &self.frame_buffers {
                 self.device.destroy_framebuffer(*framebuffer, None);
@@ -112,20 +106,14 @@ impl Renderer {
 
     pub fn draw_frame(&mut self) {
         // wait for last rendering to finish
-        unsafe {
-            self.device
-                .wait_for_fences(&[self.in_flight_fence], true, u64::MAX)
-                .expect("Failed to wait on previous frame.")
-        };
-        unsafe { self.device.reset_fences(&[self.in_flight_fence]) }
-            .expect("Failed to reset fence.");
+        self.syncer.wait_in_flight(&self.device);
 
         // Acquiring swapchain img and signal rendering when done
         let (idx, _) = unsafe {
             self.device.swapchain_khr().acquire_next_image(
                 *self.swapchain,
                 u64::MAX,
-                self.img_available_semaphor,
+                self.syncer.img_available,
                 Fence::null(),
             )
         }
@@ -138,9 +126,9 @@ impl Renderer {
             &self.render_pass,
             &self.pipeline,
         );
-        let wait_semaphores = [self.img_available_semaphor];
+        let wait_semaphores = [self.syncer.img_available];
         let wait_dst_stage_mask = [PipelineStageFlags::COLOR_ATTACHMENT_OUTPUT];
-        let signal_semaphores = [self.render_finished_semaphor];
+        let signal_semaphores = [self.syncer.render_finished];
         let command_buffers = [self.commander.draw];
         let submit_info = SubmitInfo::default()
             .wait_semaphores(&wait_semaphores)
@@ -149,7 +137,7 @@ impl Renderer {
             .signal_semaphores(&signal_semaphores);
         unsafe {
             self.device
-                .queue_submit(self.graphics_queue, &[submit_info], self.in_flight_fence)
+                .queue_submit(self.graphics_queue, &[submit_info], self.syncer.in_flight)
         }
         .expect("Failed to submit commands.");
 
@@ -225,22 +213,4 @@ fn create_frame_buffers(
                 .expect("Failed to create framebuffer.")
         })
         .collect()
-}
-
-fn create_sync_objects(device: &Device) -> (Semaphore, Semaphore, Fence) {
-    let semaphore_create_info = SemaphoreCreateInfo::default();
-    let fence_create_info = FenceCreateInfo::default().flags(FenceCreateFlags::SIGNALED);
-
-    let img_available_semaphor = unsafe { device.create_semaphore(&semaphore_create_info, None) }
-        .expect("Failed to create semaphore.");
-    let render_finished_semaphor = unsafe { device.create_semaphore(&semaphore_create_info, None) }
-        .expect("Failed to create semaphore.");
-    let in_flight_fence =
-        unsafe { device.create_fence(&fence_create_info, None) }.expect("Failed to create fence.");
-
-    (
-        img_available_semaphor,
-        render_finished_semaphor,
-        in_flight_fence,
-    )
 }

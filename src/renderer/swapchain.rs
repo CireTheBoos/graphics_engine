@@ -66,7 +66,10 @@ impl Swapchain {
             .expect("Failed to create swapchain.");
         let images = unsafe { device.swapchain_khr().get_swapchain_images(swapchain) }
             .expect("Failed to extract images.");
-        println!("Swapchain::new(..) -> {} images in swapchain.", images.len());
+        println!(
+            "Swapchain::new(..) -> {} images in swapchain.",
+            images.len()
+        );
         Swapchain { swapchain, images }
     }
 }

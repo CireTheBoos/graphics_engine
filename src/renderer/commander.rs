@@ -22,7 +22,11 @@ pub struct Commander {
 
 impl Commander {
     pub fn new(device: &Device) -> Commander {
-        let graphics_pool = create_pool(device, device.infos.graphics_idx, CommandPoolCreateFlags::RESET_COMMAND_BUFFER);
+        let graphics_pool = create_pool(
+            device,
+            device.infos.graphics_idx,
+            CommandPoolCreateFlags::RESET_COMMAND_BUFFER,
+        );
         let draw = allocate_draw(device, &graphics_pool);
         Commander {
             graphics_pool,
@@ -60,17 +64,11 @@ impl Commander {
             )
             .clear_values(&clear_values);
         unsafe {
-            device.cmd_begin_render_pass(
-                self.draw,
-                &render_pass_begin,
-                SubpassContents::INLINE,
-            )
+            device.cmd_begin_render_pass(self.draw, &render_pass_begin, SubpassContents::INLINE)
         };
 
         // bind pipeline
-        unsafe {
-            device.cmd_bind_pipeline(self.draw, PipelineBindPoint::GRAPHICS, **pipeline)
-        };
+        unsafe { device.cmd_bind_pipeline(self.draw, PipelineBindPoint::GRAPHICS, **pipeline) };
 
         // draw
         unsafe { device.cmd_draw(self.draw, 3, 1, 0, 0) };
@@ -79,8 +77,7 @@ impl Commander {
         unsafe { device.cmd_end_render_pass(self.draw) };
 
         // END
-        unsafe { device.end_command_buffer(self.draw) }
-            .expect("Failed to record command buffer.");
+        unsafe { device.end_command_buffer(self.draw) }.expect("Failed to record command buffer.");
     }
 }
 
