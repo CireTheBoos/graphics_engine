@@ -1,4 +1,4 @@
-mod commands;
+mod commander;
 mod device;
 mod pipeline;
 mod shaders;
@@ -8,9 +8,9 @@ use std::u64;
 
 use crate::instance::Instance;
 use ash::vk::{
-    CommandBuffer, ComponentMapping, Extent2D, Fence, FenceCreateFlags, FenceCreateInfo, Framebuffer, FramebufferCreateInfo, Image, ImageAspectFlags, ImageSubresourceRange, ImageView, ImageViewCreateInfo, ImageViewType, PipelineStageFlags, PresentInfoKHR, Queue, Semaphore, SemaphoreCreateInfo, SubmitInfo, SurfaceKHR
+    ComponentMapping, Extent2D, Fence, FenceCreateFlags, FenceCreateInfo, Framebuffer, FramebufferCreateInfo, Image, ImageAspectFlags, ImageSubresourceRange, ImageView, ImageViewCreateInfo, ImageViewType, PipelineStageFlags, PresentInfoKHR, Queue, Semaphore, SemaphoreCreateInfo, SubmitInfo, SurfaceKHR
 };
-use commands::CommandManager;
+use commander::Commander;
 pub use device::Device;
 use pipeline::{RendererPipeline, RendererRenderPass};
 use swapchain::Swapchain;
@@ -23,6 +23,8 @@ pub struct Renderer {
     surface: SurfaceKHR,
     device: Device,
     allocator: Allocator,
+    commander: Commander,
+    // TODO : syncer
     // presentation
     present_queue: Queue,
     swapchain: Swapchain,
@@ -32,9 +34,6 @@ pub struct Renderer {
     render_pass: RendererRenderPass,
     pipeline: RendererPipeline,
     frame_buffers: Vec<Framebuffer>,
-    // commands
-    cmd_man: CommandManager,
-    execute_pipeline: CommandBuffer,
     // sync
     img_available_semaphor: Semaphore,
     render_finished_semaphor: Semaphore,
@@ -43,20 +42,17 @@ pub struct Renderer {
 
 impl Renderer {
     pub fn new(instance: &Instance, surface: SurfaceKHR) -> Renderer {
-        // Create device and queues
+        // Create device and allocator
         let device = Device::new(instance, &surface);
-        let graphics_queue = unsafe { device.get_device_queue(device.infos.graphics_idx, 0) };
-        let present_queue = unsafe { device.get_device_queue(device.infos.present_idx, 0) };
-
-        // Create VMA allocator
-        let create_info = AllocatorCreateInfo::new(instance, &device, device.infos.physical_device);
-        let allocator =
-            unsafe { Allocator::new(create_info) }.expect("Failed to create allocator.");
+        let allocator = create_allocator(instance, &device);
+        let commander = Commander::new(&device);
 
         // PRESENTATION : Create swapchain
         let swapchain = Swapchain::new(&device, &surface);
+        let present_queue = unsafe { device.get_device_queue(device.infos.present_idx, 0) };
 
         // COMPUTATION : Create pipeline, image views
+        let graphics_queue = unsafe { device.get_device_queue(device.infos.graphics_idx, 0) };
         let image_views = create_image_views(&device, &swapchain.images);
         let render_pass = RendererRenderPass::new(&device);
         let pipeline = RendererPipeline::new(&device, &render_pass);
@@ -67,9 +63,7 @@ impl Renderer {
             &device,
         );
 
-        // COMMANDS : Create pools through manager then get execute_pipeline cmd_buf
-        let cmd_man = CommandManager::new(&device);
-        let execute_pipeline = cmd_man.graphics_reuse_new_cmdbuf(&device);
+        // SYNC
         let (img_available_semaphor, render_finished_semaphor, in_flight_fence) =
             create_sync_objects(&device);
 
@@ -77,6 +71,7 @@ impl Renderer {
             surface,
             device,
             allocator,
+            commander,
             graphics_queue,
             present_queue,
             swapchain,
@@ -84,8 +79,6 @@ impl Renderer {
             render_pass,
             pipeline,
             frame_buffers,
-            cmd_man,
-            execute_pipeline,
             img_available_semaphor,
             render_finished_semaphor,
             in_flight_fence,
@@ -101,7 +94,7 @@ impl Renderer {
             self.device
                 .destroy_semaphore(self.render_finished_semaphor, None);
             self.device.destroy_fence(self.in_flight_fence, None);
-            self.cmd_man.destroy(&self.device);
+            self.commander.destroy(&self.device);
             for framebuffer in &self.frame_buffers {
                 self.device.destroy_framebuffer(*framebuffer, None);
             }
@@ -127,7 +120,7 @@ impl Renderer {
         unsafe { self.device.reset_fences(&[self.in_flight_fence]) }
             .expect("Failed to reset fence.");
 
-        // Acquiring swapchain img
+        // Acquiring swapchain img and signal rendering when done
         let (idx, _) = unsafe {
             self.device.swapchain_khr().acquire_next_image(
                 *self.swapchain,
@@ -138,20 +131,17 @@ impl Renderer {
         }
         .expect("Failed to acquire next swapchain image.");
 
-        // Record command buffer
-        self.cmd_man.record_frame(
+        // rendering and signal fence and present when done
+        self.commander.record_draw(
             &self.device,
-            &self.execute_pipeline,
-            &self.render_pass,
             &self.frame_buffers[idx as usize],
+            &self.render_pass,
             &self.pipeline,
         );
-
-        // submit command buffer
         let wait_semaphores = [self.img_available_semaphor];
         let wait_dst_stage_mask = [PipelineStageFlags::COLOR_ATTACHMENT_OUTPUT];
         let signal_semaphores = [self.render_finished_semaphor];
-        let command_buffers = [self.execute_pipeline];
+        let command_buffers = [self.commander.draw];
         let submit_info = SubmitInfo::default()
             .wait_semaphores(&wait_semaphores)
             .wait_dst_stage_mask(&wait_dst_stage_mask)
@@ -177,6 +167,11 @@ impl Renderer {
         }
         .expect("Failed to present image.");
     }
+}
+
+fn create_allocator(instance: &Instance, device: &Device) -> Allocator {
+    let create_info = AllocatorCreateInfo::new(instance, &device, device.infos.physical_device);
+    unsafe { Allocator::new(create_info) }.expect("Failed to create allocator.")
 }
 
 fn create_image_views(device: &Device, images: &Vec<Image>) -> Vec<ImageView> {
