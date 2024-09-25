@@ -9,41 +9,49 @@ use super::{
     Device,
 };
 
-pub struct RendererCommands {
-    command_pool: CommandPool,
-    pub command_buffer: CommandBuffer,
+pub struct CommandManager {
+    graphics_reuse: CommandPool,
 }
 
-impl RendererCommands {
-    pub fn new(device: &Device) -> RendererCommands {
-        let command_pool = create_command_pool(device);
-        let command_buffer = create_command_buffer(device, &command_pool);
-        RendererCommands {
-            command_pool,
-            command_buffer,
+impl CommandManager {
+    pub fn new(device: &Device) -> CommandManager {
+        CommandManager {
+            graphics_reuse: create_graphics_reuse_pool(device),
         }
     }
 
+    pub fn graphics_reuse_new_cmdbuf(&self, device: &Device) -> CommandBuffer {
+        let allocate_info = CommandBufferAllocateInfo::default()
+            .command_pool(self.graphics_reuse)
+            .level(CommandBufferLevel::PRIMARY)
+            .command_buffer_count(1);
+
+        unsafe { device.allocate_command_buffers(&allocate_info) }
+            .expect("Failed to allocate command buffer.")[0]
+        }
+
     pub fn destroy(&mut self, device: &Device) {
-        unsafe { device.destroy_command_pool(self.command_pool, None) };
+        unsafe { device.destroy_command_pool(self.graphics_reuse, None) };
     }
 
-    pub fn record_command_buffer(
-        &mut self,
+    // record frame specific cmds on execute_pipeline
+    pub fn record_frame(
+        &self,
         device: &Device,
+        execute_pipeline: &CommandBuffer,
         render_pass: &RendererRenderPass,
         framebuffer: &Framebuffer,
         pipeline: &RendererPipeline,
     ) {
-        // begin recording
+        // BEGIN RECORDING : execute_pipeline
         let begin_info = CommandBufferBeginInfo::default();
-        unsafe { device.begin_command_buffer(self.command_buffer, &begin_info) }
+        unsafe { device.begin_command_buffer(*execute_pipeline, &begin_info) }
             .expect("Failed to start recording command buffer.");
 
+        // begin render pass
         let mut clear_color = ClearValue::default();
         clear_color.color.float32 = [0., 0., 0., 1.];
         let clear_values = [clear_color];
-
         let render_pass_begin = RenderPassBeginInfo::default()
             .render_pass(**render_pass)
             .framebuffer(*framebuffer)
@@ -53,44 +61,37 @@ impl RendererCommands {
                     .extent(device.infos.capabilities.current_extent),
             )
             .clear_values(&clear_values);
-
-        // begin renderpass
         unsafe {
             device.cmd_begin_render_pass(
-                self.command_buffer,
+                *execute_pipeline,
                 &render_pass_begin,
                 SubpassContents::INLINE,
             )
         };
 
+        // bind pipeline
         unsafe {
-            device.cmd_bind_pipeline(self.command_buffer, PipelineBindPoint::GRAPHICS, **pipeline)
+            device.cmd_bind_pipeline(*execute_pipeline, PipelineBindPoint::GRAPHICS, **pipeline)
         };
 
-        unsafe { device.cmd_draw(self.command_buffer, 3, 1, 0, 0) };
+        // draw
+        unsafe { device.cmd_draw(*execute_pipeline, 3, 1, 0, 0) };
 
-        unsafe { device.cmd_end_render_pass(self.command_buffer) };
+        // end render pass
+        unsafe { device.cmd_end_render_pass(*execute_pipeline) };
 
-        unsafe { device.end_command_buffer(self.command_buffer) }
+        // END RECORDING : execute_pipeline
+        unsafe { device.end_command_buffer(*execute_pipeline) }
             .expect("Failed to record command buffer.");
     }
+
 }
 
-fn create_command_pool(device: &Device) -> CommandPool {
+fn create_graphics_reuse_pool(device: &Device) -> CommandPool {
     let create_info = CommandPoolCreateInfo::default()
         .queue_family_index(device.infos.graphics_idx)
         .flags(CommandPoolCreateFlags::RESET_COMMAND_BUFFER);
 
     unsafe { device.create_command_pool(&create_info, None) }
         .expect("Failed to create command pool.")
-}
-
-fn create_command_buffer(device: &Device, command_pool: &CommandPool) -> CommandBuffer {
-    let allocate_info = CommandBufferAllocateInfo::default()
-        .command_pool(*command_pool)
-        .level(CommandBufferLevel::PRIMARY)
-        .command_buffer_count(1);
-
-    unsafe { device.allocate_command_buffers(&allocate_info) }
-        .expect("Failed to allocate command buffer.")[0]
 }
