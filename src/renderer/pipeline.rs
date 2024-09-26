@@ -1,7 +1,8 @@
 use std::ops::Deref;
 
+use super::render_pass::RenderPass;
 use ash::vk::{
-    ColorComponentFlags, CullModeFlags, FrontFace, GraphicsPipelineCreateInfo, Offset2D, Pipeline,
+    ColorComponentFlags, CullModeFlags, FrontFace, GraphicsPipelineCreateInfo, Offset2D,
     PipelineCache, PipelineColorBlendAttachmentState, PipelineColorBlendStateCreateInfo,
     PipelineInputAssemblyStateCreateInfo, PipelineLayout, PipelineLayoutCreateInfo,
     PipelineMultisampleStateCreateInfo, PipelineRasterizationStateCreateInfo,
@@ -9,26 +10,25 @@ use ash::vk::{
     PipelineViewportStateCreateInfo, PolygonMode, PrimitiveTopology, Rect2D, SampleCountFlags,
     ShaderStageFlags, Viewport,
 };
-pub use super::render_pass::RendererRenderPass;
 
 use super::shaders::ShaderManager;
 use super::Device;
 
-pub struct RendererPipeline {
+pub struct Pipeline {
     pub layout: PipelineLayout,
-    graphics_pipeline: Pipeline,
+    graphics_pipeline: ash::vk::Pipeline,
 }
 
 // Deref to ash::vk::Pipeline
-impl Deref for RendererPipeline {
-    type Target = Pipeline;
+impl Deref for Pipeline {
+    type Target = ash::vk::Pipeline;
     fn deref(&self) -> &Self::Target {
         &self.graphics_pipeline
     }
 }
 
-impl RendererPipeline {
-    pub fn new(device: &Device, render_pass: &RendererRenderPass) -> RendererPipeline {
+impl Pipeline {
+    pub fn new(device: &Device, render_pass: &RenderPass) -> Pipeline {
         let extent = &device.infos.capabilities.current_extent;
 
         // compiling shaders
@@ -125,7 +125,7 @@ impl RendererPipeline {
         // Cleanup and return
         unsafe { device.destroy_shader_module(vertex, None) };
         unsafe { device.destroy_shader_module(fragment, None) };
-        RendererPipeline {
+        Pipeline {
             layout,
             graphics_pipeline: graphics_pipelines[0],
         }

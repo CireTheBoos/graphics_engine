@@ -4,10 +4,7 @@ use ash::vk::{
     Offset2D, PipelineBindPoint, Rect2D, RenderPassBeginInfo, SubpassContents,
 };
 
-use super::{
-    pipeline::{RendererPipeline, RendererRenderPass},
-    Device,
-};
+use super::{pipeline::Pipeline, render_pass::RenderPass, Device};
 
 // Commander translates boilerplate cmd buf code in meaningful fns for renderer. It does NOT submit or sync. :
 // - Hold pools
@@ -42,8 +39,8 @@ impl Commander {
         &self,
         device: &Device,
         framebuffer: &Framebuffer,
-        render_pass: &RendererRenderPass,
-        pipeline: &RendererPipeline,
+        render_pass: &RenderPass,
+        pipeline: &Pipeline,
     ) {
         // BEGIN
         let begin_info = CommandBufferBeginInfo::default();

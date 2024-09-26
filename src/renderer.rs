@@ -1,10 +1,10 @@
 mod commander;
 mod device;
 mod pipeline;
+mod render_pass;
 mod shaders;
 mod swapchain;
 mod syncer;
-mod render_pass;
 
 use std::u64;
 
@@ -16,7 +16,8 @@ use ash::vk::{
 };
 use commander::Commander;
 pub use device::Device;
-use pipeline::{RendererPipeline, RendererRenderPass};
+use pipeline::Pipeline;
+use render_pass::RenderPass;
 use swapchain::Swapchain;
 use syncer::Syncer;
 use vk_mem::{Allocator, AllocatorCreateInfo};
@@ -38,8 +39,8 @@ pub struct Renderer {
     // Computation
     graphics_queue: Queue,
     image_views: Vec<ImageView>,
-    render_pass: RendererRenderPass,
-    pipeline: RendererPipeline,
+    render_pass: RenderPass,
+    pipeline: Pipeline,
     frame_buffers: Vec<Framebuffer>,
 }
 
@@ -59,8 +60,8 @@ impl Renderer {
         // Computation
         let graphics_queue = unsafe { device.get_device_queue(device.infos.graphics_idx, 0) };
         let image_views = create_image_views(&device, &swapchain.images);
-        let render_pass = RendererRenderPass::new(&device);
-        let pipeline = RendererPipeline::new(&device, &render_pass);
+        let render_pass = RenderPass::new(&device);
+        let pipeline = Pipeline::new(&device, &render_pass);
         let frame_buffers = create_frame_buffers(
             &image_views,
             &render_pass,
@@ -194,7 +195,7 @@ fn create_image_views(device: &Device, images: &Vec<Image>) -> Vec<ImageView> {
 
 fn create_frame_buffers(
     image_views: &Vec<ImageView>,
-    render_pass: &RendererRenderPass,
+    render_pass: &RenderPass,
     extent: &Extent2D,
     device: &Device,
 ) -> Vec<Framebuffer> {

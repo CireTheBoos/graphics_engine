@@ -2,26 +2,26 @@ use std::ops::Deref;
 
 use ash::vk::{
     AccessFlags, AttachmentDescription, AttachmentLoadOp, AttachmentReference, AttachmentStoreOp,
-    ImageLayout, PipelineBindPoint, PipelineStageFlags, RenderPass, RenderPassCreateInfo,
-    SampleCountFlags, SubpassDependency, SubpassDescription, SUBPASS_EXTERNAL,
+    ImageLayout, PipelineBindPoint, PipelineStageFlags, RenderPassCreateInfo, SampleCountFlags,
+    SubpassDependency, SubpassDescription, SUBPASS_EXTERNAL,
 };
 
 use super::Device;
 
-pub struct RendererRenderPass {
-    pub render_pass: RenderPass,
+pub struct RenderPass {
+    pub render_pass: ash::vk::RenderPass,
 }
 
-// Deref to ash::vk::RenderPass
-impl Deref for RendererRenderPass {
-    type Target = RenderPass;
+// Deref : ash::vk::RenderPass
+impl Deref for RenderPass {
+    type Target = ash::vk::RenderPass;
     fn deref(&self) -> &Self::Target {
         &self.render_pass
     }
 }
 
-impl RendererRenderPass {
-    pub fn new(device: &Device) -> RendererRenderPass {
+impl RenderPass {
+    pub fn new(device: &Device) -> RenderPass {
         // SPECIFY : 1 attachment
         let color_attachment = AttachmentDescription::default()
             .format(device.infos.surface_format.format)
@@ -61,6 +61,6 @@ impl RendererRenderPass {
             .dependencies(&dependencies);
         let render_pass = unsafe { device.create_render_pass(&create_info, None) }
             .expect("Failed to create render pass.");
-        RendererRenderPass { render_pass }
+        RenderPass { render_pass }
     }
 }
