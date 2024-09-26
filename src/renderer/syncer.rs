@@ -2,15 +2,14 @@ use ash::vk::{Fence, FenceCreateFlags, FenceCreateInfo, Semaphore, SemaphoreCrea
 
 use super::Device;
 
-pub const FRAMES_IN_FLIGHT: usize = 2;
-
 // Translates boilerplate sync code  into meaningful fns for renderer
 pub struct Syncer {
-    pub current_frame: usize,
-    pub frames: Vec<FrameSyncs>
+    current_frame: usize,
+    pub frames: Vec<FrameSyncs>,
 }
 
 pub struct FrameSyncs {
+    pub idx: usize,
     pub img_available: Semaphore,
     pub render_finished: Semaphore,
     pub in_flight: Fence,
@@ -19,7 +18,7 @@ pub struct FrameSyncs {
 impl Syncer {
     pub fn new(device: &Device) -> Syncer {
         let mut frames = Vec::new();
-        for _ in 0..FRAMES_IN_FLIGHT {
+        for idx in 0..super::FRAMES_IN_FLIGHT {
             // img_available
             let semaphore_create_info = SemaphoreCreateInfo::default();
             let img_available = unsafe { device.create_semaphore(&semaphore_create_info, None) }
@@ -33,9 +32,10 @@ impl Syncer {
             // in_flight
             let fence_create_info = FenceCreateInfo::default().flags(FenceCreateFlags::SIGNALED);
             let in_flight = unsafe { device.create_fence(&fence_create_info, None) }
-            .expect("Failed to create fence.");
+                .expect("Failed to create fence.");
 
             frames.push(FrameSyncs {
+                idx,
                 img_available,
                 render_finished,
                 in_flight,
@@ -47,8 +47,12 @@ impl Syncer {
         }
     }
 
-    pub fn next_frame(&self) -> usize {
-        (self.current_frame + 1) % FRAMES_IN_FLIGHT
+    pub fn step(&mut self) {
+        self.current_frame = (self.current_frame + 1) % super::FRAMES_IN_FLIGHT;
+    }
+
+    pub fn current_frame(&self) -> &FrameSyncs {
+        &self.frames[self.current_frame]
     }
 
     pub fn destroy(&mut self, device: &Device) {
@@ -58,17 +62,16 @@ impl Syncer {
                 device.destroy_semaphore(frame.render_finished, None);
                 device.destroy_fence(frame.in_flight, None);
             }
-            
         }
     }
 
-    pub fn wait_in_flight(&self, device: &Device, frame: usize) {
+    pub fn wait_in_flight(&self, device: &Device, frame: &FrameSyncs) {
         unsafe {
             device
-                .wait_for_fences(&[self.frames[frame].in_flight], true, u64::MAX)
+                .wait_for_fences(&[frame.in_flight], true, u64::MAX)
                 .expect("Failed to wait on previous frame.");
             device
-                .reset_fences(&[self.frames[frame].in_flight])
+                .reset_fences(&[frame.in_flight])
                 .expect("Failed to reset fence.");
         }
     }

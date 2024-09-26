@@ -4,7 +4,7 @@ use ash::vk::{
     Offset2D, PipelineBindPoint, Rect2D, RenderPassBeginInfo, SubpassContents,
 };
 
-use super::{pipeline::Pipeline, render_pass::RenderPass, Device};
+use super::{pipeline::Pipeline, render_pass::RenderPass, syncer::FrameSyncs, Device};
 
 // Commander translates boilerplate cmd buf code in meaningful fns for renderer. It does NOT submit or sync. :
 // - Hold pools
@@ -25,7 +25,7 @@ impl Commander {
             CommandPoolCreateFlags::RESET_COMMAND_BUFFER,
         );
         let mut draws = Vec::new();
-        for _ in 0..super::syncer::FRAMES_IN_FLIGHT {
+        for _ in 0..super::FRAMES_IN_FLIGHT {
             draws.push(allocate_draw(device, &graphics_pool));
         }
         Commander {
@@ -41,14 +41,14 @@ impl Commander {
     pub fn record_draw(
         &self,
         device: &Device,
-        draw_idx: usize,
+        frame: &FrameSyncs,
         framebuffer: &Framebuffer,
         render_pass: &RenderPass,
         pipeline: &Pipeline,
     ) {
         // BEGIN
         let begin_info = CommandBufferBeginInfo::default();
-        unsafe { device.begin_command_buffer(self.draws[draw_idx], &begin_info) }
+        unsafe { device.begin_command_buffer(self.draws[frame.idx], &begin_info) }
             .expect("Failed to start recording command buffer.");
 
         // begin render pass
@@ -65,20 +65,31 @@ impl Commander {
             )
             .clear_values(&clear_values);
         unsafe {
-            device.cmd_begin_render_pass(self.draws[draw_idx], &render_pass_begin, SubpassContents::INLINE)
+            device.cmd_begin_render_pass(
+                self.draws[frame.idx],
+                &render_pass_begin,
+                SubpassContents::INLINE,
+            )
         };
 
         // bind pipeline
-        unsafe { device.cmd_bind_pipeline(self.draws[draw_idx], PipelineBindPoint::GRAPHICS, **pipeline) };
+        unsafe {
+            device.cmd_bind_pipeline(
+                self.draws[frame.idx],
+                PipelineBindPoint::GRAPHICS,
+                **pipeline,
+            )
+        };
 
         // draw
-        unsafe { device.cmd_draw(self.draws[draw_idx], 3, 1, 0, 0) };
+        unsafe { device.cmd_draw(self.draws[frame.idx], 3, 1, 0, 0) };
 
         // end render pass
-        unsafe { device.cmd_end_render_pass(self.draws[draw_idx]) };
+        unsafe { device.cmd_end_render_pass(self.draws[frame.idx]) };
 
         // END
-        unsafe { device.end_command_buffer(self.draws[draw_idx]) }.expect("Failed to record command buffer.");
+        unsafe { device.end_command_buffer(self.draws[frame.idx]) }
+            .expect("Failed to record command buffer.");
     }
 }
 

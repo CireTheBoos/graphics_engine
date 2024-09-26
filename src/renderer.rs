@@ -22,6 +22,8 @@ use swapchain::Swapchain;
 use syncer::Syncer;
 use vk_mem::{Allocator, AllocatorCreateInfo};
 
+const FRAMES_IN_FLIGHT: usize = 2;
+
 // Given a surface :
 // - Computes imgs from input data (adapted to the surface)
 // - Presents them continuously on the surface
@@ -108,14 +110,15 @@ impl Renderer {
 
     pub fn draw_frame(&mut self) {
         // wait for last rendering to finish
-        self.syncer.wait_in_flight(&self.device, self.syncer.current_frame);
+        self.syncer
+            .wait_in_flight(&self.device, self.syncer.current_frame());
 
         // Acquiring swapchain img and signal rendering when done
         let (idx, _) = unsafe {
             self.device.swapchain_khr().acquire_next_image(
                 *self.swapchain,
                 u64::MAX,
-                self.syncer.frames[self.syncer.current_frame].img_available,
+                self.syncer.current_frame().img_available,
                 Fence::null(),
             )
         }
@@ -124,23 +127,26 @@ impl Renderer {
         // rendering and signal fence and present when done
         self.commander.record_draw(
             &self.device,
-            self.syncer.current_frame,
+            self.syncer.current_frame(),
             &self.frame_buffers[idx as usize],
             &self.render_pass,
             &self.pipeline,
         );
-        let wait_semaphores = [self.syncer.frames[self.syncer.current_frame].img_available];
+        let wait_semaphores = [self.syncer.current_frame().img_available];
         let wait_dst_stage_mask = [PipelineStageFlags::COLOR_ATTACHMENT_OUTPUT];
-        let signal_semaphores = [self.syncer.frames[self.syncer.current_frame].render_finished];
-        let command_buffers = [self.commander.draws[self.syncer.current_frame]];
+        let signal_semaphores = [self.syncer.current_frame().render_finished];
+        let command_buffers = [self.commander.draws[self.syncer.current_frame().idx]];
         let submit_info = SubmitInfo::default()
             .wait_semaphores(&wait_semaphores)
             .wait_dst_stage_mask(&wait_dst_stage_mask)
             .command_buffers(&command_buffers)
             .signal_semaphores(&signal_semaphores);
         unsafe {
-            self.device
-                .queue_submit(self.graphics_queue, &[submit_info], self.syncer.frames[self.syncer.current_frame].in_flight)
+            self.device.queue_submit(
+                self.graphics_queue,
+                &[submit_info],
+                self.syncer.current_frame().in_flight,
+            )
         }
         .expect("Failed to submit commands.");
 
@@ -158,7 +164,7 @@ impl Renderer {
         }
         .expect("Failed to present image.");
 
-        self.syncer.current_frame = self.syncer.next_frame();
+        self.syncer.step();
     }
 }
 
