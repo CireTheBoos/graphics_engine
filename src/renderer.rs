@@ -1,17 +1,19 @@
 mod commander;
+mod dealer;
 mod device;
 mod pipeline;
 mod render_pass;
 mod shaders;
 mod swapchain;
 mod syncer;
-mod dealer;
 
-use std::{ffi::c_void, u64};
+use std::u64;
 
 use crate::instance::Instance;
 use ash::vk::{
-    Buffer, ComponentMapping, Extent2D, Fence, Framebuffer, FramebufferCreateInfo, Image, ImageAspectFlags, ImageSubresourceRange, ImageView, ImageViewCreateInfo, ImageViewType, MemoryMapFlags, PipelineStageFlags, PresentInfoKHR, Queue, SubmitInfo, SurfaceKHR
+    Buffer, ComponentMapping, Extent2D, Fence, Framebuffer, FramebufferCreateInfo, Image,
+    ImageAspectFlags, ImageSubresourceRange, ImageView, ImageViewCreateInfo, ImageViewType,
+    PipelineStageFlags, PresentInfoKHR, Queue, SubmitInfo, SurfaceKHR,
 };
 use commander::Commander;
 use dealer::{vertices, Dealer};
@@ -28,8 +30,6 @@ const FRAMES_IN_FLIGHT: usize = 2;
 // - Computes imgs from input data (adapted to the surface)
 // - Presents them continuously on the surface
 pub struct Renderer {
-    surface: SurfaceKHR,
-    device: Device,
     // Utils
     commander: Commander,
     syncer: Syncer,
@@ -45,6 +45,9 @@ pub struct Renderer {
     render_pass: RenderPass,
     pipeline: Pipeline,
     frame_buffers: Vec<Framebuffer>,
+    // essential objects (drop last bc VMA allocator is freed at drop)
+    surface: SurfaceKHR,
+    device: Device,
 }
 
 impl Renderer {
@@ -73,16 +76,21 @@ impl Renderer {
         );
 
         let vertices = vertices();
-        let vertex_buffer = dealer.allocate_vertex_buffer(&device, &vertices);
+        let mut vertex_buffer = dealer.allocate_vertex_buffer(&device, &vertices);
 
         let allocation_info = dealer.allocator.get_allocation_info(&vertex_buffer.1);
-        
-        let data = unsafe { device.map_memory(allocation_info.device_memory, allocation_info.offset, allocation_info.size, MemoryMapFlags::empty()) }
+
+        let data = unsafe { dealer.allocator.map_memory(&mut vertex_buffer.1) }
             .expect("Failed to map memory.");
 
-        unsafe { data.copy_from_nonoverlapping(vertices.as_ptr() as *const c_void, allocation_info.size as usize) };
+        unsafe {
+            data.copy_from_nonoverlapping(
+                vertices.as_ptr() as *const u8,
+                allocation_info.size as usize,
+            )
+        };
 
-        unsafe { device.unmap_memory(allocation_info.device_memory) };
+        unsafe { dealer.allocator.unmap_memory(&mut vertex_buffer.1) };
 
         Renderer {
             surface,
@@ -106,7 +114,9 @@ impl Renderer {
         unsafe {
             self.device.device_wait_idle().unwrap();
 
-            self.dealer.allocator.destroy_buffer(self.vertex_buffer.0, &mut self.vertex_buffer.1);
+            self.dealer
+                .allocator
+                .destroy_buffer(self.vertex_buffer.0, &mut self.vertex_buffer.1);
 
             self.syncer.destroy(&self.device);
             self.commander.destroy(&self.device);
@@ -148,7 +158,7 @@ impl Renderer {
             &self.frame_buffers[idx as usize],
             &self.render_pass,
             &self.pipeline,
-            &self.vertex_buffer.0
+            &self.vertex_buffer.0,
         );
         let wait_semaphores = [self.syncer.current_frame().img_available];
         let wait_dst_stage_mask = [PipelineStageFlags::COLOR_ATTACHMENT_OUTPUT];
