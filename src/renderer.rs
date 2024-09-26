@@ -108,14 +108,14 @@ impl Renderer {
 
     pub fn draw_frame(&mut self) {
         // wait for last rendering to finish
-        self.syncer.wait_in_flight(&self.device);
+        self.syncer.wait_in_flight(&self.device, self.syncer.current_frame);
 
         // Acquiring swapchain img and signal rendering when done
         let (idx, _) = unsafe {
             self.device.swapchain_khr().acquire_next_image(
                 *self.swapchain,
                 u64::MAX,
-                self.syncer.img_available,
+                self.syncer.frames[self.syncer.current_frame].img_available,
                 Fence::null(),
             )
         }
@@ -124,14 +124,15 @@ impl Renderer {
         // rendering and signal fence and present when done
         self.commander.record_draw(
             &self.device,
+            self.syncer.current_frame,
             &self.frame_buffers[idx as usize],
             &self.render_pass,
             &self.pipeline,
         );
-        let wait_semaphores = [self.syncer.img_available];
+        let wait_semaphores = [self.syncer.frames[self.syncer.current_frame].img_available];
         let wait_dst_stage_mask = [PipelineStageFlags::COLOR_ATTACHMENT_OUTPUT];
-        let signal_semaphores = [self.syncer.render_finished];
-        let command_buffers = [self.commander.draw];
+        let signal_semaphores = [self.syncer.frames[self.syncer.current_frame].render_finished];
+        let command_buffers = [self.commander.draws[self.syncer.current_frame]];
         let submit_info = SubmitInfo::default()
             .wait_semaphores(&wait_semaphores)
             .wait_dst_stage_mask(&wait_dst_stage_mask)
@@ -139,7 +140,7 @@ impl Renderer {
             .signal_semaphores(&signal_semaphores);
         unsafe {
             self.device
-                .queue_submit(self.graphics_queue, &[submit_info], self.syncer.in_flight)
+                .queue_submit(self.graphics_queue, &[submit_info], self.syncer.frames[self.syncer.current_frame].in_flight)
         }
         .expect("Failed to submit commands.");
 
@@ -156,6 +157,8 @@ impl Renderer {
                 .queue_present(self.present_queue, &present_info)
         }
         .expect("Failed to present image.");
+
+        self.syncer.current_frame = self.syncer.next_frame();
     }
 }
 
