@@ -4,6 +4,7 @@ mod pipeline;
 mod shaders;
 mod swapchain;
 mod syncer;
+mod render_pass;
 
 use std::u64;
 

@@ -1,5 +1,3 @@
-mod render_pass;
-
 use std::ops::Deref;
 
 use ash::vk::{
@@ -11,7 +9,7 @@ use ash::vk::{
     PipelineViewportStateCreateInfo, PolygonMode, PrimitiveTopology, Rect2D, SampleCountFlags,
     ShaderStageFlags, Viewport,
 };
-pub use render_pass::RendererRenderPass;
+pub use super::render_pass::RendererRenderPass;
 
 use super::shaders::ShaderManager;
 use super::Device;
