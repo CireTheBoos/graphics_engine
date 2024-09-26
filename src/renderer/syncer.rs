@@ -2,13 +2,13 @@ use ash::vk::{Fence, FenceCreateFlags, FenceCreateInfo, Semaphore, SemaphoreCrea
 
 use super::Device;
 
-// Translates boilerplate sync code  into meaningful fns for renderer
+// Translates boilerplate sync code  nto meaningful fns for renderer
 pub struct Syncer {
     current_frame: usize,
-    pub frames: Vec<FrameSyncs>,
+    pub frames: Vec<Frame>,
 }
 
-pub struct FrameSyncs {
+pub struct Frame {
     pub idx: usize,
     pub img_available: Semaphore,
     pub render_finished: Semaphore,
@@ -34,7 +34,7 @@ impl Syncer {
             let in_flight = unsafe { device.create_fence(&fence_create_info, None) }
                 .expect("Failed to create fence.");
 
-            frames.push(FrameSyncs {
+            frames.push(Frame {
                 idx,
                 img_available,
                 render_finished,
@@ -51,7 +51,7 @@ impl Syncer {
         self.current_frame = (self.current_frame + 1) % super::FRAMES_IN_FLIGHT;
     }
 
-    pub fn current_frame(&self) -> &FrameSyncs {
+    pub fn current_frame(&self) -> &Frame {
         &self.frames[self.current_frame]
     }
 
@@ -65,7 +65,7 @@ impl Syncer {
         }
     }
 
-    pub fn wait_in_flight(&self, device: &Device, frame: &FrameSyncs) {
+    pub fn wait_in_flight(&self, device: &Device, frame: &Frame) {
         unsafe {
             device
                 .wait_for_fences(&[frame.in_flight], true, u64::MAX)

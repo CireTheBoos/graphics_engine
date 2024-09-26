@@ -4,7 +4,7 @@ use ash::vk::{
     Offset2D, PipelineBindPoint, Rect2D, RenderPassBeginInfo, SubpassContents,
 };
 
-use super::{pipeline::Pipeline, render_pass::RenderPass, syncer::FrameSyncs, Device};
+use super::{pipeline::Pipeline, render_pass::RenderPass, syncer::Frame, Device};
 
 // Commander translates boilerplate cmd buf code in meaningful fns for renderer. It does NOT submit or sync. :
 // - Hold pools
@@ -41,7 +41,7 @@ impl Commander {
     pub fn record_draw(
         &self,
         device: &Device,
-        frame: &FrameSyncs,
+        frame: &Frame,
         framebuffer: &Framebuffer,
         render_pass: &RenderPass,
         pipeline: &Pipeline,
