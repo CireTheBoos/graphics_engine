@@ -1,7 +1,5 @@
 use ash::vk::{
-    ClearValue, CommandBuffer, CommandBufferAllocateInfo, CommandBufferBeginInfo,
-    CommandBufferLevel, CommandPool, CommandPoolCreateFlags, CommandPoolCreateInfo, Framebuffer,
-    Offset2D, PipelineBindPoint, Rect2D, RenderPassBeginInfo, SubpassContents,
+    Buffer, ClearValue, CommandBuffer, CommandBufferAllocateInfo, CommandBufferBeginInfo, CommandBufferLevel, CommandPool, CommandPoolCreateFlags, CommandPoolCreateInfo, Framebuffer, Offset2D, PipelineBindPoint, Rect2D, RenderPassBeginInfo, SubpassContents
 };
 
 use super::{pipeline::Pipeline, render_pass::RenderPass, syncer::Frame, Device};
@@ -45,6 +43,7 @@ impl Commander {
         framebuffer: &Framebuffer,
         render_pass: &RenderPass,
         pipeline: &Pipeline,
+        vertex_buffer: &Buffer
     ) {
         // BEGIN
         let begin_info = CommandBufferBeginInfo::default();
@@ -80,6 +79,11 @@ impl Commander {
                 **pipeline,
             )
         };
+
+        // bind vertex buffer
+        let vertex_buffers = [*vertex_buffer];
+        let offsets = [0];
+        unsafe { device.cmd_bind_vertex_buffers(self.draws[frame.idx], 0, &vertex_buffers, &offsets) };
 
         // draw
         unsafe { device.cmd_draw(self.draws[frame.idx], 3, 1, 0, 0) };

@@ -1,5 +1,6 @@
 use std::ops::Deref;
 
+use super::dealer::Vertex;
 use super::render_pass::RenderPass;
 use ash::vk::{
     ColorComponentFlags, CullModeFlags, FrontFace, GraphicsPipelineCreateInfo, Offset2D,
@@ -50,9 +51,11 @@ impl Pipeline {
         let shader_stages = [vertex_stage_info, fragment_stage_info];
 
         // SPECIFY : fixed funtions stages
+        let vertex_binding_descriptions = [Vertex::binding_description()];
+        let vertex_attribute_descriptions = Vertex::attribute_description();
         let vertex_input_state = PipelineVertexInputStateCreateInfo::default()
-            .vertex_binding_descriptions(&[])
-            .vertex_attribute_descriptions(&[]);
+            .vertex_binding_descriptions(&vertex_binding_descriptions)
+            .vertex_attribute_descriptions(&vertex_attribute_descriptions);
 
         let input_assembly_state = PipelineInputAssemblyStateCreateInfo::default()
             .topology(PrimitiveTopology::TRIANGLE_LIST)

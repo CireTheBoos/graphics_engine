@@ -103,6 +103,12 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "1505bd5d3d116872e7271a6d4e16d81d0c8570876c8de68093a09ac269d8aac0"
 
 [[package]]
+name = "auto_ops"
+version = "0.3.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "7460f7dd8e100147b82a63afca1a20eb6c231ee36b90ba7272e14951cb58af59"
+
+[[package]]
 name = "autocfg"
 version = "1.3.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -407,6 +413,15 @@ dependencies = [
  "cfg-if",
  "libc",
  "wasi",
+]
+
+[[package]]
+name = "gfx-maths"
+version = "0.2.9"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "757bba517b41d90e60e23f8b810a50a73e705ac3f1be56712ebe403af850189c"
+dependencies = [
+ "auto_ops",
 ]
 
 [[package]]
@@ -1219,6 +1234,7 @@ version = "0.1.0"
 dependencies = [
  "ash",
  "ash-window",
+ "gfx-maths",
  "shaderc",
  "vk-mem",
  "winit",

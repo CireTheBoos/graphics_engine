@@ -5,22 +5,22 @@ mod render_pass;
 mod shaders;
 mod swapchain;
 mod syncer;
+mod dealer;
 
-use std::u64;
+use std::{ffi::c_void, u64};
 
 use crate::instance::Instance;
 use ash::vk::{
-    ComponentMapping, Extent2D, Fence, Framebuffer, FramebufferCreateInfo, Image, ImageAspectFlags,
-    ImageSubresourceRange, ImageView, ImageViewCreateInfo, ImageViewType, PipelineStageFlags,
-    PresentInfoKHR, Queue, SubmitInfo, SurfaceKHR,
+    Buffer, ComponentMapping, Extent2D, Fence, Framebuffer, FramebufferCreateInfo, Image, ImageAspectFlags, ImageSubresourceRange, ImageView, ImageViewCreateInfo, ImageViewType, MemoryMapFlags, PipelineStageFlags, PresentInfoKHR, Queue, SubmitInfo, SurfaceKHR
 };
 use commander::Commander;
+use dealer::{vertices, Dealer};
 pub use device::Device;
 use pipeline::Pipeline;
 use render_pass::RenderPass;
 use swapchain::Swapchain;
 use syncer::Syncer;
-use vk_mem::{Allocator, AllocatorCreateInfo};
+use vk_mem::Allocation;
 
 const FRAMES_IN_FLIGHT: usize = 2;
 
@@ -30,16 +30,17 @@ const FRAMES_IN_FLIGHT: usize = 2;
 pub struct Renderer {
     surface: SurfaceKHR,
     device: Device,
-    allocator: Allocator,
     // Utils
     commander: Commander,
     syncer: Syncer,
+    dealer: Dealer,
     // TODO : dealer
     // Presentation
     present_queue: Queue,
     swapchain: Swapchain,
     // Computation
     graphics_queue: Queue,
+    vertex_buffer: (Buffer, Allocation),
     image_views: Vec<ImageView>,
     render_pass: RenderPass,
     pipeline: Pipeline,
@@ -51,7 +52,7 @@ impl Renderer {
         let device = Device::new(instance, &surface);
 
         // Utils
-        let allocator = create_allocator(instance, &device);
+        let dealer = Dealer::new(instance, &device);
         let commander = Commander::new(&device);
         let syncer = Syncer::new(&device);
 
@@ -71,14 +72,27 @@ impl Renderer {
             &device,
         );
 
+        let vertices = vertices();
+        let vertex_buffer = dealer.allocate_vertex_buffer(&device, &vertices);
+
+        let allocation_info = dealer.allocator.get_allocation_info(&vertex_buffer.1);
+        
+        let data = unsafe { device.map_memory(allocation_info.device_memory, allocation_info.offset, allocation_info.size, MemoryMapFlags::empty()) }
+            .expect("Failed to map memory.");
+
+        unsafe { data.copy_from_nonoverlapping(vertices.as_ptr() as *const c_void, allocation_info.size as usize) };
+
+        unsafe { device.unmap_memory(allocation_info.device_memory) };
+
         Renderer {
             surface,
             device,
-            allocator,
             commander,
             syncer,
+            dealer,
             graphics_queue,
             present_queue,
+            vertex_buffer,
             swapchain,
             image_views,
             render_pass,
@@ -91,6 +105,9 @@ impl Renderer {
     pub fn destroy(&mut self, instance: &Instance) {
         unsafe {
             self.device.device_wait_idle().unwrap();
+
+            self.dealer.allocator.destroy_buffer(self.vertex_buffer.0, &mut self.vertex_buffer.1);
+
             self.syncer.destroy(&self.device);
             self.commander.destroy(&self.device);
             for framebuffer in &self.frame_buffers {
@@ -131,6 +148,7 @@ impl Renderer {
             &self.frame_buffers[idx as usize],
             &self.render_pass,
             &self.pipeline,
+            &self.vertex_buffer.0
         );
         let wait_semaphores = [self.syncer.current_frame().img_available];
         let wait_dst_stage_mask = [PipelineStageFlags::COLOR_ATTACHMENT_OUTPUT];
@@ -166,11 +184,6 @@ impl Renderer {
 
         self.syncer.step();
     }
-}
-
-fn create_allocator(instance: &Instance, device: &Device) -> Allocator {
-    let create_info = AllocatorCreateInfo::new(instance, &device, device.infos.physical_device);
-    unsafe { Allocator::new(create_info) }.expect("Failed to create allocator.")
 }
 
 fn create_image_views(device: &Device, images: &Vec<Image>) -> Vec<ImageView> {
