@@ -1,6 +1,7 @@
 use std::ops::Deref;
 
-use super::dealer::Vertex;
+use crate::model::Vertex;
+
 use super::render_pass::RenderPass;
 use ash::vk::{
     ColorComponentFlags, CullModeFlags, FrontFace, GraphicsPipelineCreateInfo, Offset2D,

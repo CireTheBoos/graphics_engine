@@ -1,8 +1,10 @@
 mod instance;
 mod renderer;
+mod model;
 
 use ash::vk::SurfaceKHR;
 use instance::Instance;
+use model::Model;
 use renderer::Renderer;
 
 use winit::{
@@ -20,6 +22,7 @@ const HEIGHT: u32 = 600;
 
 struct App {
     instance: Instance,
+    model: Model,
     window: Option<Window>,
     renderer: Option<Renderer>,
 }
@@ -34,6 +37,7 @@ impl App {
             .into();
         App {
             instance: Instance::new(raw_display_handle),
+            model: Model::new(),
             window: None,
             renderer: None,
         }
@@ -64,7 +68,9 @@ impl ApplicationHandler for App {
                 event_loop.exit();
             }
             WindowEvent::RedrawRequested => {
-                self.renderer.as_mut().unwrap().draw_frame();
+                self.model.step_if_enough_time();
+                let vertices = self.model.get_vertices();
+                self.renderer.as_mut().unwrap().draw_frame(vertices);
                 self.window.as_ref().unwrap().request_redraw();
             }
             _ => {}

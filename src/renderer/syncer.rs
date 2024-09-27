@@ -2,7 +2,7 @@ use ash::vk::{Fence, FenceCreateFlags, FenceCreateInfo, Semaphore, SemaphoreCrea
 
 use super::Device;
 
-// Translates boilerplate sync code  nto meaningful fns for renderer
+// Translates boilerplate sync code into meaningful fns for renderer
 pub struct Syncer {
     current_frame: usize,
     pub frames: Vec<Frame>,
