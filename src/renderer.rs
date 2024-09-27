@@ -37,6 +37,7 @@ pub struct Renderer {
     present_queue: Queue,
     swapchain: Swapchain,
     // Computation
+    transfer_queue: Queue,
     graphics_queue: Queue,
     image_views: Vec<ImageView>,
     render_pass: RenderPass,
@@ -63,6 +64,7 @@ impl Renderer {
 
         // Computation
         let graphics_queue = unsafe { device.get_device_queue(device.infos.graphics_idx, 0) };
+        let transfer_queue = unsafe { device.get_device_queue(device.infos.transfer_idx, 0) };
         let image_views = create_image_views(&device, &swapchain.images);
         let render_pass = RenderPass::new(&device);
         let pipeline = Pipeline::new(&device, &render_pass);
@@ -81,6 +83,7 @@ impl Renderer {
             dealer,
             graphics_queue,
             present_queue,
+            transfer_queue,
             swapchain,
             image_views,
             render_pass,

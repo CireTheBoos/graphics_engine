@@ -27,6 +27,7 @@ pub struct PhysicalDeviceInfos {
     score: u32,
     pub present_idx: u32,
     pub graphics_idx: u32,
+    pub transfer_idx: u32,
     pub capabilities: SurfaceCapabilitiesKHR,
     pub surface_format: SurfaceFormatKHR,
     pub present_mode: PresentModeKHR,
@@ -73,7 +74,14 @@ fn create_device(instance: &Instance, infos: &PhysicalDeviceInfos) -> ash::Devic
     let present_queues_info = vk::DeviceQueueCreateInfo::default()
         .queue_family_index(infos.present_idx)
         .queue_priorities(&[0.5]);
-    let mut queue_create_infos = vec![graphics_queues_info, present_queues_info];
+    let transfer_queues_info = vk::DeviceQueueCreateInfo::default()
+        .queue_family_index(infos.transfer_idx)
+        .queue_priorities(&[0.5]);
+    let mut queue_create_infos = vec![
+        graphics_queues_info,
+        present_queues_info,
+        transfer_queues_info,
+    ];
     // removes duplicates
     queue_create_infos.sort_by_key(|info| info.queue_family_index);
     queue_create_infos.dedup_by_key(|info| info.queue_family_index);
@@ -132,6 +140,15 @@ fn query_physical_device_infos(
         .iter()
         .position(|queue_family| queue_family.queue_flags.contains(QueueFlags::GRAPHICS))
         .ok_or(())? as u32; // Convert Option to Result : Ok for Some and Err for None
+
+    // transfer queue (!= graphics queue)
+    let transfer_idx = queue_families
+        .iter()
+        .position(|queue_family| {
+            queue_family.queue_flags.contains(QueueFlags::TRANSFER)
+                && !queue_family.queue_flags.contains(QueueFlags::GRAPHICS)
+        })
+        .ok_or(())? as u32;
 
     // surface support
     let present_idx = queue_families
@@ -202,6 +219,7 @@ fn query_physical_device_infos(
         present_mode,
         graphics_idx,
         present_idx,
+        transfer_idx,
     })
 }
 

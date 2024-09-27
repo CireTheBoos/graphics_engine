@@ -4,7 +4,7 @@ use ash::vk::{
     Offset2D, PipelineBindPoint, Rect2D, RenderPassBeginInfo, SubpassContents,
 };
 
-use super::{pipeline::Pipeline, render_pass::RenderPass, syncer::Frame, Device};
+use super::{pipeline::Pipeline, render_pass::RenderPass, syncer::Frame, Device, FRAMES_IN_FLIGHT};
 
 // Commander translates boilerplate cmd buf code in meaningful fns for renderer. It does NOT submit or sync. :
 // - Hold pools
@@ -14,28 +14,53 @@ use super::{pipeline::Pipeline, render_pass::RenderPass, syncer::Frame, Device};
 // - draw : execute the graphics pipeline and render on a given frame buffer
 pub struct Commander {
     graphics_pool: CommandPool,
+    transfer_pool: CommandPool,
     pub draws: Vec<CommandBuffer>,
+    pub upload_vertices: CommandBuffer,
 }
 
 impl Commander {
     pub fn new(device: &Device) -> Commander {
+        // Pools
         let graphics_pool = create_pool(
             device,
             device.infos.graphics_idx,
             CommandPoolCreateFlags::RESET_COMMAND_BUFFER,
         );
-        let mut draws = Vec::new();
-        for _ in 0..super::FRAMES_IN_FLIGHT {
-            draws.push(allocate_draw(device, &graphics_pool));
-        }
+        let transfer_pool = create_pool(
+            device,
+            device.infos.transfer_idx,
+            CommandPoolCreateFlags::RESET_COMMAND_BUFFER,
+        );
+
+        // Reusable command buffers
+        let allocate_info = CommandBufferAllocateInfo::default()
+            .command_pool(graphics_pool)
+            .level(CommandBufferLevel::PRIMARY)
+            .command_buffer_count(FRAMES_IN_FLIGHT as u32);
+        let draws = unsafe { device.allocate_command_buffers(&allocate_info) }
+            .expect("Failed to allocate command buffer.");
+
+        let allocate_info = CommandBufferAllocateInfo::default()
+            .command_pool(transfer_pool)
+            .level(CommandBufferLevel::PRIMARY)
+            .command_buffer_count(1);
+        let upload_vertices = unsafe { device.allocate_command_buffers(&allocate_info) }
+            .expect("Failed to allocate command buffer.")[0];
+
         Commander {
             graphics_pool,
+            transfer_pool,
             draws,
+            upload_vertices,
         }
     }
 
     pub fn destroy(&mut self, device: &Device) {
-        unsafe { device.destroy_command_pool(self.graphics_pool, None) };
+        unsafe {
+            device.destroy_command_pool(self.graphics_pool, None);
+            device.destroy_command_pool(self.transfer_pool, None);
+        }
     }
 
     pub fn record_draw(
@@ -105,17 +130,6 @@ fn create_pool(device: &Device, queue_family: u32, flags: CommandPoolCreateFlags
     let create_info = CommandPoolCreateInfo::default()
         .queue_family_index(queue_family)
         .flags(flags);
-
     unsafe { device.create_command_pool(&create_info, None) }
         .expect("Failed to create command pool.")
-}
-
-fn allocate_draw(device: &Device, pool: &CommandPool) -> CommandBuffer {
-    let allocate_info = CommandBufferAllocateInfo::default()
-        .command_pool(*pool)
-        .level(CommandBufferLevel::PRIMARY)
-        .command_buffer_count(1);
-
-    unsafe { device.allocate_command_buffers(&allocate_info) }
-        .expect("Failed to allocate command buffer.")[0]
 }
