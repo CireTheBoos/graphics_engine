@@ -1,6 +1,6 @@
 mod instance;
-mod renderer;
 mod model;
+mod renderer;
 
 use ash::vk::SurfaceKHR;
 use instance::Instance;
@@ -69,8 +69,10 @@ impl ApplicationHandler for App {
             }
             WindowEvent::RedrawRequested => {
                 self.model.step_if_enough_time();
-                let vertices = self.model.get_vertices();
-                self.renderer.as_mut().unwrap().draw_frame(vertices);
+                self.renderer
+                    .as_mut()
+                    .unwrap()
+                    .draw_frame(&self.model.vertices);
                 self.window.as_ref().unwrap().request_redraw();
             }
             _ => {}

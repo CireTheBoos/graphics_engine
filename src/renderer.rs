@@ -11,9 +11,9 @@ use std::u64;
 
 use crate::{instance::Instance, model::Vertex};
 use ash::vk::{
-    ComponentMapping, Extent2D, Fence, Framebuffer, FramebufferCreateInfo, Image,
-    ImageAspectFlags, ImageSubresourceRange, ImageView, ImageViewCreateInfo, ImageViewType,
-    PipelineStageFlags, PresentInfoKHR, Queue, SubmitInfo, SurfaceKHR,
+    ComponentMapping, Extent2D, Fence, Framebuffer, FramebufferCreateInfo, Image, ImageAspectFlags,
+    ImageSubresourceRange, ImageView, ImageViewCreateInfo, ImageViewType, PipelineStageFlags,
+    PresentInfoKHR, Queue, SubmitInfo, SurfaceKHR,
 };
 use commander::Commander;
 use dealer::Dealer;
@@ -33,7 +33,6 @@ pub struct Renderer {
     commander: Commander,
     syncer: Syncer,
     dealer: Dealer,
-    // TODO : dealer
     // Presentation
     present_queue: Queue,
     swapchain: Swapchain,
@@ -43,13 +42,14 @@ pub struct Renderer {
     render_pass: RenderPass,
     pipeline: Pipeline,
     frame_buffers: Vec<Framebuffer>,
-    // essential objects (drop last bc VMA allocator is freed at drop)
+    // Essentials : Last bc dealer (=> VMA allocator) must drop before
     surface: SurfaceKHR,
     device: Device,
 }
 
 impl Renderer {
     pub fn new(instance: &Instance, surface: SurfaceKHR) -> Renderer {
+        // Essentials
         let device = Device::new(instance, &surface);
 
         // Utils
@@ -89,13 +89,22 @@ impl Renderer {
         }
     }
 
-    // Destroy views, swapchain, surface (order matters)
+    // Destroy vulkan objects (order matters)
     pub fn destroy(&mut self, instance: &Instance) {
         unsafe {
             self.device.device_wait_idle().unwrap();
+
+            // Utils
             self.dealer.destroy();
             self.syncer.destroy(&self.device);
             self.commander.destroy(&self.device);
+
+            // Presentation
+            self.device
+                .swapchain_khr()
+                .destroy_swapchain(*self.swapchain, None);
+
+            // Computation
             for framebuffer in &self.frame_buffers {
                 self.device.destroy_framebuffer(*framebuffer, None);
             }
@@ -104,9 +113,8 @@ impl Renderer {
             for image_view in &self.image_views {
                 self.device.destroy_image_view(*image_view, None);
             }
-            self.device
-                .swapchain_khr()
-                .destroy_swapchain(*self.swapchain, None);
+
+            // Essentials
             instance.surface_khr().destroy_surface(self.surface, None);
         }
     }
@@ -116,8 +124,9 @@ impl Renderer {
         self.syncer
             .wait_in_flight(&self.device, self.syncer.current_frame());
 
-        self.dealer.fill_vertex_buffer(vertices);
-        
+        // update vertex buffer
+        self.dealer.update_vertex_buffer(vertices);
+
         // Acquiring swapchain img and signal rendering when done
         let (idx, _) = unsafe {
             self.device.swapchain_khr().acquire_next_image(
@@ -136,7 +145,7 @@ impl Renderer {
             &self.frame_buffers[idx as usize],
             &self.render_pass,
             &self.pipeline,
-            &self.dealer.vertex_buffer.0,
+            &self.dealer.vertex_buffer,
         );
         let wait_semaphores = [self.syncer.current_frame().img_available];
         let wait_dst_stage_mask = [PipelineStageFlags::COLOR_ATTACHMENT_OUTPUT];
