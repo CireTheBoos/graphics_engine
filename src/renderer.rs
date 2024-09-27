@@ -11,9 +11,7 @@ use std::u64;
 
 use crate::{instance::Instance, model::Vertex};
 use ash::vk::{
-    ComponentMapping, Extent2D, Fence, Framebuffer, FramebufferCreateInfo, Image, ImageAspectFlags,
-    ImageSubresourceRange, ImageView, ImageViewCreateInfo, ImageViewType, PipelineStageFlags,
-    PresentInfoKHR, Queue, SubmitInfo, SurfaceKHR,
+    ComponentMapping, Extent2D, Fence, Framebuffer, FramebufferCreateInfo, Image, ImageAspectFlags, ImageSubresourceRange, ImageView, ImageViewCreateInfo, ImageViewType, PipelineStageFlags, PresentInfoKHR, Queue, Semaphore, SubmitInfo, SurfaceKHR
 };
 use commander::Commander;
 use dealer::Dealer;
@@ -56,6 +54,7 @@ impl Renderer {
         // Utils
         let dealer = Dealer::new(instance, &device);
         let commander = Commander::new(&device);
+        commander.prerecord(&device, &dealer);
         let syncer = Syncer::new(&device);
 
         // Presentation
@@ -122,57 +121,106 @@ impl Renderer {
         }
     }
 
-    pub fn draw_frame(&mut self, vertices: &Vec<Vertex>) {
-        // wait for last rendering to finish
-        self.syncer
-            .wait_in_flight(&self.device, self.syncer.current_frame());
+    pub fn render_frame(&mut self, vertices: &Vec<Vertex>) {
+        // in-frame dependencies
+        let transfer_done = self.syncer.current_frame().transfer_done;
+        let img_available = self.syncer.current_frame().img_available;
+        let rendering_done = self.syncer.current_frame().render_finished;
+        // out-flight dependencies
+        let last_flight_presented = self.syncer.current_frame().last_flight_presented;
+        // out-frame dependencies
+        let last_frame_transfer_done = self.syncer.last_frame_transfer_done;
 
-        // update vertex buffer
-        self.dealer.update_vertex_buffer(vertices);
+        // WAIT FENCES : last_flight_presented, last_frame_transfer_done
+        let fences = [last_flight_presented, last_frame_transfer_done];
+        self.syncer.wait_fences(&self.device, &fences);
 
-        // Acquiring swapchain img and signal rendering when done
-        let (idx, _) = unsafe {
-            self.device.swapchain_khr().acquire_next_image(
-                *self.swapchain,
-                u64::MAX,
-                self.syncer.current_frame().img_available,
-                Fence::null(),
-            )
-        }
-        .expect("Failed to acquire next swapchain image.");
+        // update staging vertex buffer
+        self.dealer.update_staging_vertex_buffer(vertices);
 
-        // rendering and signal fence and present when done
+        // SUBMIT : Transfer
+        let signal_semaphores = [transfer_done];
+        let signal_fence = last_frame_transfer_done;
+        self.upload_vertices(&signal_semaphores, signal_fence);
+
+        // SUBMIT : Acquire image
+        let signal_semaphore = img_available;
+        let idx = self.acquire_next_image(signal_semaphore);
+        
+        // RECORD : draw
         self.commander.record_draw(
             &self.device,
-            self.syncer.current_frame(),
+            self.syncer.current_frame().idx,
             &self.frame_buffers[idx as usize],
             &self.render_pass,
             &self.pipeline,
             &self.dealer.vertex_buffer,
         );
-        let wait_semaphores = [self.syncer.current_frame().img_available];
+
+        // SUBMIT : draw
+        let wait_semaphores = [transfer_done, img_available];
         let wait_dst_stage_mask = [PipelineStageFlags::COLOR_ATTACHMENT_OUTPUT];
-        let signal_semaphores = [self.syncer.current_frame().render_finished];
+        let signal_semaphores = [rendering_done];
+        let signal_fence = last_flight_presented;
+        self.draw(&wait_semaphores, &wait_dst_stage_mask, &signal_semaphores, signal_fence);
+
+        // PRESENT
+        let wait_semaphores = [rendering_done];
+        self.present(idx, &wait_semaphores);
+
+        self.syncer.step();
+    }
+
+    fn upload_vertices(&self, signal_semaphores: &[Semaphore], signal_fence: Fence) {
+        let command_buffers = [self.commander.upload_vertices];
+        let submit_info = SubmitInfo::default()
+            .command_buffers(&command_buffers)
+            .signal_semaphores(signal_semaphores);
+        unsafe {
+            self.device.queue_submit(
+                self.transfer_queue,
+                &[submit_info],
+                signal_fence,
+            )
+        }
+        .expect("Failed to submit upload_vertices cmd buf.");
+    }
+
+    fn acquire_next_image(&self, signal_semaphore: Semaphore) -> u32 {
+        let (idx, _) = unsafe {
+            self.device.swapchain_khr().acquire_next_image(
+                *self.swapchain,
+                u64::MAX,
+                signal_semaphore,
+                Fence::null(),
+            )
+        }
+        .expect("Failed to acquire next swapchain image.");
+        idx
+    }
+
+    fn draw(&self, wait_semaphores: &[Semaphore], wait_dst_stage_mask: &[PipelineStageFlags], signal_semaphores: &[Semaphore], signal_fence: Fence) {
         let command_buffers = [self.commander.draws[self.syncer.current_frame().idx]];
         let submit_info = SubmitInfo::default()
             .wait_semaphores(&wait_semaphores)
+            .signal_semaphores(&signal_semaphores)
             .wait_dst_stage_mask(&wait_dst_stage_mask)
-            .command_buffers(&command_buffers)
-            .signal_semaphores(&signal_semaphores);
+            .command_buffers(&command_buffers);
         unsafe {
             self.device.queue_submit(
                 self.graphics_queue,
                 &[submit_info],
-                self.syncer.current_frame().in_flight,
+                signal_fence,
             )
         }
-        .expect("Failed to submit commands.");
+        .expect("Failed to submit draw cmd buf.");
+    }
 
-        // presentation
-        let indices = [idx];
+    fn present(&self, image_idx: u32, wait_semaphores: &[Semaphore]) {
         let swapchains = [*self.swapchain];
+        let indices = [image_idx];
         let present_info = PresentInfoKHR::default()
-            .wait_semaphores(&signal_semaphores)
+            .wait_semaphores(&wait_semaphores)
             .swapchains(&swapchains)
             .image_indices(&indices);
         unsafe {
@@ -181,8 +229,6 @@ impl Renderer {
                 .queue_present(self.present_queue, &present_info)
         }
         .expect("Failed to present image.");
-
-        self.syncer.step();
     }
 }
 

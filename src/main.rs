@@ -72,7 +72,7 @@ impl ApplicationHandler for App {
                 self.renderer
                     .as_mut()
                     .unwrap()
-                    .draw_frame(&self.model.vertices);
+                    .render_frame(&self.model.vertices);
                 self.window.as_ref().unwrap().request_redraw();
             }
             _ => {}

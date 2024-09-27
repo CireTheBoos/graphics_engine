@@ -1,10 +1,10 @@
 use ash::vk::{
-    Buffer, ClearValue, CommandBuffer, CommandBufferAllocateInfo, CommandBufferBeginInfo,
-    CommandBufferLevel, CommandPool, CommandPoolCreateFlags, CommandPoolCreateInfo, Framebuffer,
-    Offset2D, PipelineBindPoint, Rect2D, RenderPassBeginInfo, SubpassContents,
+    Buffer, BufferCopy, ClearValue, CommandBuffer, CommandBufferAllocateInfo, CommandBufferBeginInfo, CommandBufferLevel, CommandPool, CommandPoolCreateFlags, CommandPoolCreateInfo, Framebuffer, Offset2D, PipelineBindPoint, Rect2D, RenderPassBeginInfo, SubpassContents
 };
 
-use super::{pipeline::Pipeline, render_pass::RenderPass, syncer::Frame, Device, FRAMES_IN_FLIGHT};
+use crate::model::{Vertex, MAX_VERTICES};
+
+use super::{dealer::Dealer, pipeline::Pipeline, render_pass::RenderPass, Device, FRAMES_IN_FLIGHT};
 
 // Commander translates boilerplate cmd buf code in meaningful fns for renderer. It does NOT submit or sync. :
 // - Hold pools
@@ -56,6 +56,23 @@ impl Commander {
         }
     }
 
+    pub fn prerecord(&self, device: &Device, dealer: &Dealer) {
+        // record upload_vertices
+        // BEGIN
+        let begin_info = CommandBufferBeginInfo::default();
+        unsafe { device.begin_command_buffer(self.upload_vertices, &begin_info) }
+            .expect("Failed to start recording command buffer.");
+
+        // Copy
+        let regions = [BufferCopy::default()
+            .size(Vertex::size_of() as u64 * MAX_VERTICES)];
+        unsafe { device.cmd_copy_buffer(self.upload_vertices, dealer.staging_vertex_buffer, dealer.vertex_buffer, &regions) };
+
+        // END
+        unsafe { device.end_command_buffer(self.upload_vertices) }
+            .expect("Failed to record upload_vertices.");
+    }
+
     pub fn destroy(&mut self, device: &Device) {
         unsafe {
             device.destroy_command_pool(self.graphics_pool, None);
@@ -66,7 +83,7 @@ impl Commander {
     pub fn record_draw(
         &self,
         device: &Device,
-        frame: &Frame,
+        frame_idx: usize,
         framebuffer: &Framebuffer,
         render_pass: &RenderPass,
         pipeline: &Pipeline,
@@ -74,7 +91,7 @@ impl Commander {
     ) {
         // BEGIN
         let begin_info = CommandBufferBeginInfo::default();
-        unsafe { device.begin_command_buffer(self.draws[frame.idx], &begin_info) }
+        unsafe { device.begin_command_buffer(self.draws[frame_idx], &begin_info) }
             .expect("Failed to start recording command buffer.");
 
         // begin render pass
@@ -92,7 +109,7 @@ impl Commander {
             .clear_values(&clear_values);
         unsafe {
             device.cmd_begin_render_pass(
-                self.draws[frame.idx],
+                self.draws[frame_idx],
                 &render_pass_begin,
                 SubpassContents::INLINE,
             )
@@ -101,7 +118,7 @@ impl Commander {
         // bind pipeline
         unsafe {
             device.cmd_bind_pipeline(
-                self.draws[frame.idx],
+                self.draws[frame_idx],
                 PipelineBindPoint::GRAPHICS,
                 **pipeline,
             )
@@ -111,17 +128,17 @@ impl Commander {
         let vertex_buffers = [*vertex_buffer];
         let offsets = [0];
         unsafe {
-            device.cmd_bind_vertex_buffers(self.draws[frame.idx], 0, &vertex_buffers, &offsets)
+            device.cmd_bind_vertex_buffers(self.draws[frame_idx], 0, &vertex_buffers, &offsets)
         };
 
         // draw
-        unsafe { device.cmd_draw(self.draws[frame.idx], 3, 1, 0, 0) };
+        unsafe { device.cmd_draw(self.draws[frame_idx], 3, 1, 0, 0) };
 
         // end render pass
-        unsafe { device.cmd_end_render_pass(self.draws[frame.idx]) };
+        unsafe { device.cmd_end_render_pass(self.draws[frame_idx]) };
 
         // END
-        unsafe { device.end_command_buffer(self.draws[frame.idx]) }
+        unsafe { device.end_command_buffer(self.draws[frame_idx]) }
             .expect("Failed to record command buffer.");
     }
 }
