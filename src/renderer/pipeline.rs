@@ -107,7 +107,6 @@ impl Pipeline {
             .expect("Failed to create pipeline layout.");
 
         // CREATE : pipeline
-
         let pipeline_info = GraphicsPipelineCreateInfo::default()
             .stages(&shader_stages)
             .vertex_input_state(&vertex_input_state)

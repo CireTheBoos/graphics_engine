@@ -22,8 +22,8 @@ impl Deref for RenderPass {
 
 impl RenderPass {
     pub fn new(device: &Device) -> RenderPass {
-        // SPECIFY : 1 attachment
-        let color_attachment = AttachmentDescription::default()
+        // SPECIFY : attachments
+        let final_image = AttachmentDescription::default()
             .format(device.infos.surface_format.format)
             .samples(SampleCountFlags::TYPE_1)
             .load_op(AttachmentLoadOp::CLEAR)
@@ -32,13 +32,21 @@ impl RenderPass {
             .stencil_store_op(AttachmentStoreOp::DONT_CARE)
             .initial_layout(ImageLayout::UNDEFINED)
             .final_layout(ImageLayout::PRESENT_SRC_KHR);
-        let color_attachments = [color_attachment];
-        let attachment_ref = AttachmentReference::default()
+
+        let attachments = [final_image];
+
+        // SPECIFY : subpasses
+        let final_image_ref = AttachmentReference::default()
             .attachment(0)
             .layout(ImageLayout::COLOR_ATTACHMENT_OPTIMAL);
-        let color_attachments_refs = [attachment_ref];
+        let color_attachments = [final_image_ref];
+        let color_rendering = SubpassDescription::default()
+            .pipeline_bind_point(PipelineBindPoint::GRAPHICS)
+            .color_attachments(&color_attachments);
 
-        // SPECIFY : subpass dependency
+        let subpasses = [color_rendering];
+
+        // SPECIFY : dependencies
         let dependency = SubpassDependency::default()
             .src_subpass(SUBPASS_EXTERNAL)
             .dst_subpass(0)
@@ -48,15 +56,9 @@ impl RenderPass {
             .dst_access_mask(AccessFlags::COLOR_ATTACHMENT_WRITE);
         let dependencies = [dependency];
 
-        // CREATE : subpass
-        let subpass = SubpassDescription::default()
-            .pipeline_bind_point(PipelineBindPoint::GRAPHICS)
-            .color_attachments(&color_attachments_refs);
-        let subpasses = [subpass];
-
         // CREATE : render pass
         let create_info = RenderPassCreateInfo::default()
-            .attachments(&color_attachments)
+            .attachments(&attachments)
             .subpasses(&subpasses)
             .dependencies(&dependencies);
         let render_pass = unsafe { device.create_render_pass(&create_info, None) }
