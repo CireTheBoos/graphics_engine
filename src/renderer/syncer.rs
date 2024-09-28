@@ -1,97 +1,99 @@
 use ash::vk::{Fence, FenceCreateFlags, FenceCreateInfo, Semaphore, SemaphoreCreateInfo};
 
-use super::Device;
+use super::{Device, FLIGHTS};
 
 // Translates boilerplate sync code into meaningful fns for renderer
+#[derive(Debug)]
 pub struct Syncer {
-    current_frame: usize,
-    pub frames: Vec<Frame>,
-    pub last_frame_transfer_done: Fence,
+    pub transfer_done: Fence,
+    pub flights: Vec<Flight>,
+    current_flight: usize,
 }
 
-pub struct Frame {
+#[derive(Debug)]
+pub struct Flight {
     pub idx: usize,
     // in-frame dependencies
     pub transfer_done: Semaphore,
     pub img_available: Semaphore,
-    pub render_finished: Semaphore,
-    // between last flight dependencies
-    pub last_flight_presented: Fence,
+    pub rendering_done: Semaphore,
+    // between-flight dependencies
+    pub presented: Fence,
 }
 
 impl Syncer {
     pub fn new(device: &Device) -> Syncer {
-        let mut frames = Vec::new();
-        for idx in 0..super::FRAMES_IN_FLIGHT {
-            // transfer_done
-            let semaphore_create_info = SemaphoreCreateInfo::default();
-            let transfer_done = unsafe { device.create_semaphore(&semaphore_create_info, None) }
-                .expect("Failed to create semaphore.");
+        let mut flights = Vec::with_capacity(FLIGHTS);
+        for idx in 0..FLIGHTS {
+            // Semaphores
+            let transfer_done = new_semaphore(device);
+            let img_available = new_semaphore(device);
+            let rendering_done = new_semaphore(device);
 
-            // img_available
-            let semaphore_create_info = SemaphoreCreateInfo::default();
-            let img_available = unsafe { device.create_semaphore(&semaphore_create_info, None) }
-                .expect("Failed to create semaphore.");
+            // Fences
+            let presented = new_fence(device, true);
 
-            // render_finished
-            let semaphore_create_info = SemaphoreCreateInfo::default();
-            let render_finished = unsafe { device.create_semaphore(&semaphore_create_info, None) }
-                .expect("Failed to create semaphore.");
-
-            // last_flight_presented
-            let fence_create_info = FenceCreateInfo::default().flags(FenceCreateFlags::SIGNALED);
-            let last_flight_presented = unsafe { device.create_fence(&fence_create_info, None) }
-                .expect("Failed to create fence.");
-
-            frames.push(Frame {
+            flights.push(Flight {
                 idx,
                 transfer_done,
                 img_available,
-                render_finished,
-                last_flight_presented,
+                rendering_done,
+                presented,
             });
         }
-
-        // last_frame_transfer_done
-        let fence_create_info = FenceCreateInfo::default().flags(FenceCreateFlags::SIGNALED);
-        let last_frame_transfer_done = unsafe { device.create_fence(&fence_create_info, None) }
-            .expect("Failed to create fence.");
-
+        let transfer_done = new_fence(device, true);
         Syncer {
-            current_frame: 0,
-            frames,
-            last_frame_transfer_done,
+            transfer_done,
+            flights,
+            current_flight: 0,
         }
-    }
-
-    pub fn step(&mut self) {
-        self.current_frame = (self.current_frame + 1) % super::FRAMES_IN_FLIGHT;
-    }
-
-    pub fn current_frame(&self) -> &Frame {
-        &self.frames[self.current_frame]
     }
 
     pub fn destroy(&mut self, device: &Device) {
         unsafe {
-            for frame in &self.frames {
-                device.destroy_semaphore(frame.img_available, None);
-                device.destroy_semaphore(frame.render_finished, None);
-                device.destroy_fence(frame.last_flight_presented, None);
-                device.destroy_semaphore(frame.transfer_done, None);
+            for flight in &self.flights {
+                device.destroy_semaphore(flight.img_available, None);
+                device.destroy_semaphore(flight.rendering_done, None);
+                device.destroy_semaphore(flight.transfer_done, None);
+                device.destroy_fence(flight.presented, None);
             }
-            device.destroy_fence(self.last_frame_transfer_done, None);
+            device.destroy_fence(self.transfer_done, None);
         }
     }
 
-    pub fn wait_fences(&self, device: &Device, fences: &[Fence]) {
-        unsafe {
-            device
-                .wait_for_fences(&fences, true, u64::MAX)
-                .expect("Failed to wait on previous frame.");
-            device
-                .reset_fences(&fences)
-                .expect("Failed to reset fence.");
-        }
+    pub fn step_flight(&mut self) {
+        self.current_flight = (self.current_flight + 1) % FLIGHTS;
     }
+
+    pub fn current_flight(&self) -> &Flight {
+        &self.flights[self.current_flight]
+    }
+}
+
+pub fn wait_fences(device: &Device, fences: &[Fence]) {
+    unsafe {
+        device
+            .wait_for_fences(&fences, true, u64::MAX)
+            .expect("Failed to wait on previous frame.");
+        device
+            .reset_fences(&fences)
+            .expect("Failed to reset fence.");
+    }
+}
+
+fn new_semaphore(device: &Device) -> Semaphore {
+    let semaphore_create_info = SemaphoreCreateInfo::default();
+    unsafe { device.create_semaphore(&semaphore_create_info, None) }
+        .expect("Failed to create semaphore.")
+}
+
+fn new_fence(device: &Device, signaled: bool) -> Fence {
+    let fence_create_info = if signaled {
+        FenceCreateInfo::default().flags(FenceCreateFlags::SIGNALED)
+    }
+    else {
+        FenceCreateInfo::default()
+    };
+    unsafe { device.create_fence(&fence_create_info, None) }
+        .expect("Failed to create fence.")
 }

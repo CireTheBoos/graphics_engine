@@ -1,10 +1,15 @@
 use ash::vk::{
-    Buffer, BufferCopy, ClearValue, CommandBuffer, CommandBufferAllocateInfo, CommandBufferBeginInfo, CommandBufferLevel, CommandPool, CommandPoolCreateFlags, CommandPoolCreateInfo, Framebuffer, Offset2D, PipelineBindPoint, Rect2D, RenderPassBeginInfo, SubpassContents
+    Buffer, BufferCopy, ClearValue, CommandBuffer, CommandBufferAllocateInfo,
+    CommandBufferBeginInfo, CommandBufferLevel, CommandPool, CommandPoolCreateFlags,
+    CommandPoolCreateInfo, Framebuffer, Offset2D, PipelineBindPoint, Rect2D, RenderPassBeginInfo,
+    SubpassContents,
 };
 
 use crate::model::{Vertex, MAX_VERTICES};
 
-use super::{dealer::Dealer, pipeline::Pipeline, render_pass::RenderPass, Device, FRAMES_IN_FLIGHT};
+use super::{
+    dealer::Dealer, pipeline::Pipeline, render_pass::RenderPass, Device, FLIGHTS,
+};
 
 // Commander translates boilerplate cmd buf code in meaningful fns for renderer. It does NOT submit or sync. :
 // - Hold pools
@@ -16,11 +21,11 @@ pub struct Commander {
     graphics_pool: CommandPool,
     transfer_pool: CommandPool,
     pub draws: Vec<CommandBuffer>,
-    pub upload_vertices: CommandBuffer,
+    pub transfer_vertices: CommandBuffer,
 }
 
 impl Commander {
-    pub fn new(device: &Device) -> Commander {
+    pub fn new(device: &Device, dealer: &Dealer) -> Commander {
         // Pools
         let graphics_pool = create_pool(
             device,
@@ -33,44 +38,16 @@ impl Commander {
             CommandPoolCreateFlags::RESET_COMMAND_BUFFER,
         );
 
-        // Reusable command buffers
-        let allocate_info = CommandBufferAllocateInfo::default()
-            .command_pool(graphics_pool)
-            .level(CommandBufferLevel::PRIMARY)
-            .command_buffer_count(FRAMES_IN_FLIGHT as u32);
-        let draws = unsafe { device.allocate_command_buffers(&allocate_info) }
-            .expect("Failed to allocate command buffer.");
-
-        let allocate_info = CommandBufferAllocateInfo::default()
-            .command_pool(transfer_pool)
-            .level(CommandBufferLevel::PRIMARY)
-            .command_buffer_count(1);
-        let upload_vertices = unsafe { device.allocate_command_buffers(&allocate_info) }
-            .expect("Failed to allocate command buffer.")[0];
+        // Command buffers
+        let draws = Commander::draws(graphics_pool, device);
+        let transfer_vertices = Commander::transfer_vertices(transfer_pool, device, dealer);
 
         Commander {
             graphics_pool,
             transfer_pool,
             draws,
-            upload_vertices,
+            transfer_vertices,
         }
-    }
-
-    pub fn prerecord(&self, device: &Device, dealer: &Dealer) {
-        // record upload_vertices
-        // BEGIN
-        let begin_info = CommandBufferBeginInfo::default();
-        unsafe { device.begin_command_buffer(self.upload_vertices, &begin_info) }
-            .expect("Failed to start recording command buffer.");
-
-        // Copy
-        let regions = [BufferCopy::default()
-            .size(Vertex::size_of() as u64 * MAX_VERTICES)];
-        unsafe { device.cmd_copy_buffer(self.upload_vertices, dealer.staging_vertex_buffer, dealer.vertex_buffer, &regions) };
-
-        // END
-        unsafe { device.end_command_buffer(self.upload_vertices) }
-            .expect("Failed to record upload_vertices.");
     }
 
     pub fn destroy(&mut self, device: &Device) {
@@ -78,6 +55,48 @@ impl Commander {
             device.destroy_command_pool(self.graphics_pool, None);
             device.destroy_command_pool(self.transfer_pool, None);
         }
+    }
+
+    // allocate
+    fn draws(pool: CommandPool, device: &Device) -> Vec<CommandBuffer> {
+        let allocate_info = CommandBufferAllocateInfo::default()
+            .command_pool(pool)
+            .level(CommandBufferLevel::PRIMARY)
+            .command_buffer_count(FLIGHTS as u32);
+        unsafe { device.allocate_command_buffers(&allocate_info) }
+            .expect("Failed to allocate command buffer.")
+    }
+
+    // allocate and record
+    fn transfer_vertices(pool: CommandPool, device: &Device, dealer: &Dealer) -> CommandBuffer {
+        let allocate_info = CommandBufferAllocateInfo::default()
+            .command_pool(pool)
+            .level(CommandBufferLevel::PRIMARY)
+            .command_buffer_count(1);
+        let transfer_vertices = unsafe { device.allocate_command_buffers(&allocate_info) }
+            .expect("Failed to allocate command buffer.")[0];
+
+        // BEGIN
+        let begin_info = CommandBufferBeginInfo::default();
+        unsafe { device.begin_command_buffer(transfer_vertices, &begin_info) }
+            .expect("Failed to start recording command buffer.");
+
+        // Copy
+        let regions = [BufferCopy::default().size(Vertex::size_of() as u64 * MAX_VERTICES)];
+        unsafe {
+            device.cmd_copy_buffer(
+                transfer_vertices,
+                dealer.staging_vertex_buffer,
+                dealer.vertex_buffer,
+                &regions,
+            )
+        };
+
+        // END
+        unsafe { device.end_command_buffer(transfer_vertices) }
+            .expect("Failed to record upload_vertices.");
+
+        transfer_vertices
     }
 
     pub fn record_draw(

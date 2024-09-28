@@ -11,7 +11,9 @@ use std::u64;
 
 use crate::{instance::Instance, model::Vertex};
 use ash::vk::{
-    ComponentMapping, Extent2D, Fence, Framebuffer, FramebufferCreateInfo, Image, ImageAspectFlags, ImageSubresourceRange, ImageView, ImageViewCreateInfo, ImageViewType, PipelineStageFlags, PresentInfoKHR, Queue, Semaphore, SubmitInfo, SurfaceKHR
+    ComponentMapping, Extent2D, Fence, Framebuffer, FramebufferCreateInfo, Image, ImageAspectFlags,
+    ImageSubresourceRange, ImageView, ImageViewCreateInfo, ImageViewType, PipelineStageFlags,
+    PresentInfoKHR, Queue, Semaphore, SubmitInfo, SurfaceKHR,
 };
 use commander::Commander;
 use dealer::Dealer;
@@ -21,7 +23,7 @@ use render_pass::RenderPass;
 use swapchain::Swapchain;
 use syncer::Syncer;
 
-const FRAMES_IN_FLIGHT: usize = 2;
+const FLIGHTS: usize = 2;
 
 // Given a surface :
 // - Computes imgs from input data (adapted to the surface)
@@ -53,8 +55,7 @@ impl Renderer {
 
         // Utils
         let dealer = Dealer::new(instance, &device);
-        let commander = Commander::new(&device);
-        commander.prerecord(&device, &dealer);
+        let commander = Commander::new(&device, &dealer);
         let syncer = Syncer::new(&device);
 
         // Presentation
@@ -122,35 +123,34 @@ impl Renderer {
     }
 
     pub fn render_frame(&mut self, vertices: &Vec<Vertex>) {
-        // in-frame dependencies
-        let transfer_done = self.syncer.current_frame().transfer_done;
-        let img_available = self.syncer.current_frame().img_available;
-        let rendering_done = self.syncer.current_frame().render_finished;
-        // out-flight dependencies
-        let last_flight_presented = self.syncer.current_frame().last_flight_presented;
-        // out-frame dependencies
-        let last_frame_transfer_done = self.syncer.last_frame_transfer_done;
+        println!("{:#?}",self.syncer);
+        let frame_transfer_done = self.syncer.transfer_done;
+        let transfer_done = self.syncer.current_flight().transfer_done;
+        let img_available = self.syncer.current_flight().img_available;
+        let rendering_done = self.syncer.current_flight().rendering_done;
+        let presented = self.syncer.current_flight().presented;
 
-        // WAIT FENCES : last_flight_presented, last_frame_transfer_done
-        let fences = [last_flight_presented, last_frame_transfer_done];
-        self.syncer.wait_fences(&self.device, &fences);
+        // WAIT
+        let fences = [presented, frame_transfer_done];
+        syncer::wait_fences(&self.device, &fences);
 
         // update staging vertex buffer
-        self.dealer.update_staging_vertex_buffer(vertices);
+        self.dealer.copy_vertices(vertices);
 
         // SUBMIT : Transfer
         let signal_semaphores = [transfer_done];
-        let signal_fence = last_frame_transfer_done;
-        self.upload_vertices(&signal_semaphores, signal_fence);
+        let signal_fence = frame_transfer_done;
+        self.transfer_vertices(&signal_semaphores, signal_fence);
 
         // SUBMIT : Acquire image
         let signal_semaphore = img_available;
-        let idx = self.acquire_next_image(signal_semaphore);
-        
+        let signal_fence = Fence::null();
+        let idx = self.acquire_next_image(signal_semaphore, signal_fence);
+
         // RECORD : draw
         self.commander.record_draw(
             &self.device,
-            self.syncer.current_frame().idx,
+            self.syncer.current_flight().idx,
             &self.frame_buffers[idx as usize],
             &self.render_pass,
             &self.pipeline,
@@ -161,57 +161,62 @@ impl Renderer {
         let wait_semaphores = [transfer_done, img_available];
         let wait_dst_stage_mask = [PipelineStageFlags::COLOR_ATTACHMENT_OUTPUT];
         let signal_semaphores = [rendering_done];
-        let signal_fence = last_flight_presented;
-        self.draw(&wait_semaphores, &wait_dst_stage_mask, &signal_semaphores, signal_fence);
+        let signal_fence = presented;
+        self.draw(
+            &wait_semaphores,
+            &wait_dst_stage_mask,
+            &signal_semaphores,
+            signal_fence,
+        );
 
         // PRESENT
         let wait_semaphores = [rendering_done];
         self.present(idx, &wait_semaphores);
 
-        self.syncer.step();
+        self.syncer.step_flight();
     }
 
-    fn upload_vertices(&self, signal_semaphores: &[Semaphore], signal_fence: Fence) {
-        let command_buffers = [self.commander.upload_vertices];
+    fn transfer_vertices(&self, signal_semaphores: &[Semaphore], signal_fence: Fence) {
+        let command_buffers = [self.commander.transfer_vertices];
         let submit_info = SubmitInfo::default()
             .command_buffers(&command_buffers)
             .signal_semaphores(signal_semaphores);
         unsafe {
-            self.device.queue_submit(
-                self.transfer_queue,
-                &[submit_info],
-                signal_fence,
-            )
+            self.device
+                .queue_submit(self.transfer_queue, &[submit_info], signal_fence)
         }
         .expect("Failed to submit upload_vertices cmd buf.");
     }
 
-    fn acquire_next_image(&self, signal_semaphore: Semaphore) -> u32 {
+    fn acquire_next_image(&self, signal_semaphore: Semaphore, signal_fence: Fence) -> u32 {
         let (idx, _) = unsafe {
             self.device.swapchain_khr().acquire_next_image(
                 *self.swapchain,
                 u64::MAX,
                 signal_semaphore,
-                Fence::null(),
+                signal_fence,
             )
         }
         .expect("Failed to acquire next swapchain image.");
         idx
     }
 
-    fn draw(&self, wait_semaphores: &[Semaphore], wait_dst_stage_mask: &[PipelineStageFlags], signal_semaphores: &[Semaphore], signal_fence: Fence) {
-        let command_buffers = [self.commander.draws[self.syncer.current_frame().idx]];
+    fn draw(
+        &self,
+        wait_semaphores: &[Semaphore],
+        wait_dst_stage_mask: &[PipelineStageFlags],
+        signal_semaphores: &[Semaphore],
+        signal_fence: Fence,
+    ) {
+        let command_buffers = [self.commander.draws[self.syncer.current_flight().idx]];
         let submit_info = SubmitInfo::default()
             .wait_semaphores(&wait_semaphores)
             .signal_semaphores(&signal_semaphores)
             .wait_dst_stage_mask(&wait_dst_stage_mask)
             .command_buffers(&command_buffers);
         unsafe {
-            self.device.queue_submit(
-                self.graphics_queue,
-                &[submit_info],
-                signal_fence,
-            )
+            self.device
+                .queue_submit(self.graphics_queue, &[submit_info], signal_fence)
         }
         .expect("Failed to submit draw cmd buf.");
     }

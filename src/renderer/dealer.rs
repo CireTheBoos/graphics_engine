@@ -26,7 +26,8 @@ impl Dealer {
 
         // Allocate buffers
         let (vertex_buffer, vertex_allocation) = allocate_vertex_buffer(&allocator, device);
-        let (staging_vertex_buffer, staging_vertex_allocation) = allocate_staging_vertex_buffer(&allocator, device);
+        let (staging_vertex_buffer, staging_vertex_allocation) =
+            allocate_staging_vertex_buffer(&allocator, device);
 
         Dealer {
             allocator,
@@ -41,12 +42,14 @@ impl Dealer {
         unsafe {
             self.allocator
                 .destroy_buffer(self.vertex_buffer, &mut self.vertex_allocation);
-            self.allocator
-                .destroy_buffer(self.staging_vertex_buffer, &mut self.staging_vertex_allocation);
+            self.allocator.destroy_buffer(
+                self.staging_vertex_buffer,
+                &mut self.staging_vertex_allocation,
+            );
         }
     }
 
-    pub fn update_staging_vertex_buffer(&mut self, vertices: &Vec<Vertex>) {
+    pub fn copy_vertices(&mut self, vertices: &Vec<Vertex>) {
         unsafe {
             let staging_vertices = self
                 .allocator
@@ -56,7 +59,8 @@ impl Dealer {
                 vertices.as_ptr() as *const u8,
                 Vertex::size_of() * vertices.len(),
             );
-            self.allocator.unmap_memory(&mut self.staging_vertex_allocation);
+            self.allocator
+                .unmap_memory(&mut self.staging_vertex_allocation);
         }
     }
 }
