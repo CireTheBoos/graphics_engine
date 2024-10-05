@@ -1,11 +1,11 @@
 mod instance;
 mod model;
-mod renderer;
+mod graphics_engine;
 
 use ash::vk::SurfaceKHR;
 use instance::Instance;
 use model::Model;
-use renderer::Renderer;
+use graphics_engine::GraphicsEngine;
 
 use winit::{
     application::ApplicationHandler,
@@ -20,15 +20,19 @@ const TITLE: &str = "Renderer";
 const WIDTH: u32 = 600;
 const HEIGHT: u32 = 600;
 
+// Interface with the OS => manage windows and events. Methods :
+// - new(...) : Instantiate a vk instance capable of rendering to the display and a new model.
+// - resumed(...) : Instantiate a window and a renderer to its inner surface.
+// - window_event(event, ...) : Handle events.
 struct App {
     instance: Instance,
     model: Model,
     window: Option<Window>,
-    renderer: Option<Renderer>,
+    renderer: Option<GraphicsEngine>,
 }
 
 impl App {
-    // Only instantiate vulkan as rendering is setup in "resumed()"
+    // Only instantiate vulkan, rendering is setup in "resumed()"
     fn new(event_loop: &EventLoop<()>) -> App {
         let raw_display_handle: RawDisplayHandle = event_loop
             .owned_display_handle()
@@ -47,10 +51,11 @@ impl App {
 // Trait to be able to receive events from event_loop
 impl ApplicationHandler for App {
     // Create a window and its renderer
+    // Called when a window become visible
     fn resumed(&mut self, event_loop: &ActiveEventLoop) {
         let window = create_window(event_loop);
         let surface = create_surface(&self.instance, &window);
-        let renderer = Renderer::new(&self.instance, surface);
+        let renderer = GraphicsEngine::new(&self.instance, surface);
         self.window = Some(window);
         self.renderer = Some(renderer);
     }
@@ -73,6 +78,7 @@ impl ApplicationHandler for App {
                     .as_mut()
                     .unwrap()
                     .render_frame(&self.model.vertices);
+                // Request "Redraw" again, making it loop as fast as possible
                 self.window.as_ref().unwrap().request_redraw();
             }
             _ => {}

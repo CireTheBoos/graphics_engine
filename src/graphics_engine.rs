@@ -28,7 +28,7 @@ const FLIGHTS: usize = 2;
 // Given a surface :
 // - Computes imgs from input data (adapted to the surface)
 // - Presents them continuously on the surface
-pub struct Renderer {
+pub struct GraphicsEngine {
     // Utils
     commander: Commander,
     syncer: Syncer,
@@ -48,8 +48,8 @@ pub struct Renderer {
     device: Device,
 }
 
-impl Renderer {
-    pub fn new(instance: &Instance, surface: SurfaceKHR) -> Renderer {
+impl GraphicsEngine {
+    pub fn new(instance: &Instance, surface: SurfaceKHR) -> GraphicsEngine {
         // Essentials
         let device = Device::new(instance, &surface);
 
@@ -75,7 +75,7 @@ impl Renderer {
             &device,
         );
 
-        Renderer {
+        GraphicsEngine {
             surface,
             device,
             commander,

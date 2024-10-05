@@ -11,13 +11,13 @@ use winit::raw_window_handle::RawDisplayHandle;
 const VALIDATION_LAYER: *const c_char = c"VK_LAYER_KHRONOS_validation".as_ptr();
 
 // Custom instance for presenting :
-// - Appropriate extensions for creating surfaces from "raw_display_handle" => surfaceKHR extension
-// - Hold entry => It's the only instance
+// - Appropriate extensions for creating surfaces from "raw_display_handle" => surfaceKHR extension + OS-specific window extension
+// - Hold entry => Must be the only instance
 // - Validation layers on Debug
 pub struct Instance {
     entry: Entry,
     instance: ash::Instance,
-    // surfaceKHR extension fns
+    // surfaceKHR extension vk fns
     surface_khr_instance: ash::khr::surface::Instance,
 }
 
