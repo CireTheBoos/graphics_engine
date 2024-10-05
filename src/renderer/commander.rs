@@ -102,7 +102,7 @@ impl Commander {
     pub fn record_draw(
         &self,
         device: &Device,
-        frame_idx: usize,
+        flight_idx: usize,
         framebuffer: &Framebuffer,
         render_pass: &RenderPass,
         pipeline: &Pipeline,
@@ -110,7 +110,7 @@ impl Commander {
     ) {
         // BEGIN
         let begin_info = CommandBufferBeginInfo::default();
-        unsafe { device.begin_command_buffer(self.draws[frame_idx], &begin_info) }
+        unsafe { device.begin_command_buffer(self.draws[flight_idx], &begin_info) }
             .expect("Failed to start recording command buffer.");
 
         // begin render pass
@@ -128,7 +128,7 @@ impl Commander {
             .clear_values(&clear_values);
         unsafe {
             device.cmd_begin_render_pass(
-                self.draws[frame_idx],
+                self.draws[flight_idx],
                 &render_pass_begin,
                 SubpassContents::INLINE,
             )
@@ -137,7 +137,7 @@ impl Commander {
         // bind pipeline
         unsafe {
             device.cmd_bind_pipeline(
-                self.draws[frame_idx],
+                self.draws[flight_idx],
                 PipelineBindPoint::GRAPHICS,
                 **pipeline,
             )
@@ -147,17 +147,17 @@ impl Commander {
         let vertex_buffers = [*vertex_buffer];
         let offsets = [0];
         unsafe {
-            device.cmd_bind_vertex_buffers(self.draws[frame_idx], 0, &vertex_buffers, &offsets)
+            device.cmd_bind_vertex_buffers(self.draws[flight_idx], 0, &vertex_buffers, &offsets)
         };
 
         // draw
-        unsafe { device.cmd_draw(self.draws[frame_idx], 3, 1, 0, 0) };
+        unsafe { device.cmd_draw(self.draws[flight_idx], 3, 1, 0, 0) };
 
         // end render pass
-        unsafe { device.cmd_end_render_pass(self.draws[frame_idx]) };
+        unsafe { device.cmd_end_render_pass(self.draws[flight_idx]) };
 
         // END
-        unsafe { device.end_command_buffer(self.draws[frame_idx]) }
+        unsafe { device.end_command_buffer(self.draws[flight_idx]) }
             .expect("Failed to record command buffer.");
     }
 }

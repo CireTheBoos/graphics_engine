@@ -6,6 +6,7 @@ use super::{Device, FLIGHTS};
 #[derive(Debug)]
 pub struct Syncer {
     pub transfer_done: Fence,
+    //pub img_acquired: Fence,
     pub flights: Vec<Flight>,
     current_flight: usize,
 }
@@ -42,8 +43,10 @@ impl Syncer {
             });
         }
         let transfer_done = new_fence(device, true);
+        //let img_acquired = new_fence(device, true);
         Syncer {
             transfer_done,
+            //img_acquired,
             flights,
             current_flight: 0,
         }
@@ -51,13 +54,14 @@ impl Syncer {
 
     pub fn destroy(&mut self, device: &Device) {
         unsafe {
+            device.destroy_fence(self.transfer_done, None);
+            //device.destroy_fence(self.img_acquired, None);
             for flight in &self.flights {
                 device.destroy_semaphore(flight.img_available, None);
                 device.destroy_semaphore(flight.rendering_done, None);
                 device.destroy_semaphore(flight.transfer_done, None);
                 device.destroy_fence(flight.presented, None);
             }
-            device.destroy_fence(self.transfer_done, None);
         }
     }
 

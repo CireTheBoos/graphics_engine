@@ -8,7 +8,7 @@ pub const MAX_VERTICES: u64 = 12;
 
 // Handle vertices based on time
 pub struct Model {
-    now: Instant,
+    last_step: Instant,
     pub vertices: Vec<Vertex>,
     switch: u32,
 }
@@ -16,14 +16,14 @@ pub struct Model {
 impl Model {
     pub fn new() -> Model {
         Model {
-            now: Instant::now(),
+            last_step: Instant::now(),
             vertices: vertices_1(),
             switch: 0,
         }
     }
 
     pub fn step_if_enough_time(&mut self) {
-        if self.now.elapsed().as_millis() >= 1000 {
+        if self.last_step.elapsed().as_millis() >= 1000 {
             if self.switch == 0 {
                 self.switch = 1;
                 self.vertices = vertices_2();
@@ -31,7 +31,7 @@ impl Model {
                 self.switch = 0;
                 self.vertices = vertices_1();
             }
-            self.now = Instant::now();
+            self.last_step = Instant::now();
         }
     }
 }

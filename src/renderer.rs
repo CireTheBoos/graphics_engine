@@ -124,6 +124,7 @@ impl Renderer {
 
     pub fn render_frame(&mut self, vertices: &Vec<Vertex>) {
         println!("{:#?}",self.syncer);
+        //let frame_img_acquired = self.syncer.img_acquired;
         let frame_transfer_done = self.syncer.transfer_done;
         let transfer_done = self.syncer.current_flight().transfer_done;
         let img_available = self.syncer.current_flight().img_available;
@@ -134,7 +135,7 @@ impl Renderer {
         let fences = [presented, frame_transfer_done];
         syncer::wait_fences(&self.device, &fences);
 
-        // update staging vertex buffer
+        // Update staging vertex buffer
         self.dealer.copy_vertices(vertices);
 
         // SUBMIT : Transfer
@@ -142,23 +143,23 @@ impl Renderer {
         let signal_fence = frame_transfer_done;
         self.transfer_vertices(&signal_semaphores, signal_fence);
 
-        // SUBMIT : Acquire image
+        // Acquire next image
         let signal_semaphore = img_available;
         let signal_fence = Fence::null();
-        let idx = self.acquire_next_image(signal_semaphore, signal_fence);
+        let image_idx = self.acquire_next_image(signal_semaphore, signal_fence);
 
         // RECORD : draw
         self.commander.record_draw(
             &self.device,
             self.syncer.current_flight().idx,
-            &self.frame_buffers[idx as usize],
+            &self.frame_buffers[image_idx as usize],
             &self.render_pass,
             &self.pipeline,
             &self.dealer.vertex_buffer,
         );
 
         // SUBMIT : draw
-        let wait_semaphores = [transfer_done, img_available];
+        let wait_semaphores = [img_available, transfer_done];
         let wait_dst_stage_mask = [PipelineStageFlags::COLOR_ATTACHMENT_OUTPUT];
         let signal_semaphores = [rendering_done];
         let signal_fence = presented;
@@ -171,7 +172,7 @@ impl Renderer {
 
         // PRESENT
         let wait_semaphores = [rendering_done];
-        self.present(idx, &wait_semaphores);
+        self.present(image_idx, &wait_semaphores);
 
         self.syncer.step_flight();
     }
