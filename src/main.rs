@@ -1,11 +1,11 @@
+mod graphics_engine;
 mod instance;
 mod model;
-mod graphics_engine;
 
 use ash::vk::SurfaceKHR;
+use graphics_engine::GraphicsEngine;
 use instance::Instance;
 use model::Model;
-use graphics_engine::GraphicsEngine;
 
 use winit::{
     application::ApplicationHandler,

@@ -1,9 +1,8 @@
+mod swapchain;
+
 use ash::vk::{Fence, Image, PresentInfoKHR, Queue, Semaphore, SurfaceKHR};
 use swapchain::Swapchain;
-
-use super::Device;
-
-mod swapchain;
+use crate::graphics_engine::Device;
 
 pub struct Presenter {
     swapchain: Swapchain,
@@ -14,12 +13,17 @@ impl Presenter {
     pub fn new(device: &Device, surface: &SurfaceKHR) -> Presenter {
         let swapchain = Swapchain::new(&device, &surface);
         let present_queue = unsafe { device.get_device_queue(device.infos.present_idx, 0) };
-        Presenter {  swapchain, present_queue }
+        Presenter {
+            swapchain,
+            present_queue,
+        }
     }
 
     pub fn destroy(&mut self, device: &Device) {
         unsafe {
-            device.swapchain_khr().destroy_swapchain(*self.swapchain, None);
+            device
+                .swapchain_khr()
+                .destroy_swapchain(*self.swapchain, None);
         }
     }
 
@@ -27,7 +31,12 @@ impl Presenter {
         &self.swapchain.images
     }
 
-    pub fn acquire_next_image(&self, device: &Device, signal_semaphore: Semaphore, signal_fence: Fence) -> u32 {
+    pub fn acquire_next_image(
+        &self,
+        device: &Device,
+        signal_semaphore: Semaphore,
+        signal_fence: Fence,
+    ) -> u32 {
         let (idx, _) = unsafe {
             device.swapchain_khr().acquire_next_image(
                 *self.swapchain,

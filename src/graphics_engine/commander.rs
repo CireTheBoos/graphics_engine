@@ -7,8 +7,9 @@ use ash::vk::{
 
 use crate::model::{Vertex, MAX_VERTICES};
 
-use super::{
-    dealer::Dealer, pipeline::Pipeline, render_pass::RenderPass, Device, FLIGHTS,
+use crate::graphics_engine::{
+    renderer::{Pipeline, RenderPass},
+    Dealer, Device, FLIGHTS,
 };
 
 // Commander translates boilerplate cmd buf code in meaningful fns for renderer. It does NOT submit or sync. :

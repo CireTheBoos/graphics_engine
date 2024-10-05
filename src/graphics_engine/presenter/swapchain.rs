@@ -1,12 +1,13 @@
 use std::ops::Deref;
-
 use ash::vk::{
     CompositeAlphaFlagsKHR, Image, ImageUsageFlags, SharingMode, SurfaceKHR,
     SwapchainCreateInfoKHR, SwapchainKHR,
 };
-
 use crate::graphics_engine::device::Device;
 
+// Custom swapchain for presenter.
+// - at least 3 images
+// - hold swapchain images
 pub struct Swapchain {
     swapchain: SwapchainKHR,
     pub images: Vec<Image>,

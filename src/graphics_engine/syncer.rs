@@ -94,10 +94,8 @@ fn new_semaphore(device: &Device) -> Semaphore {
 fn new_fence(device: &Device, signaled: bool) -> Fence {
     let fence_create_info = if signaled {
         FenceCreateInfo::default().flags(FenceCreateFlags::SIGNALED)
-    }
-    else {
+    } else {
         FenceCreateInfo::default()
     };
-    unsafe { device.create_fence(&fence_create_info, None) }
-        .expect("Failed to create fence.")
+    unsafe { device.create_fence(&fence_create_info, None) }.expect("Failed to create fence.")
 }
