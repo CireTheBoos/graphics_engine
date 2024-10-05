@@ -4,23 +4,22 @@ mod device;
 mod pipeline;
 mod render_pass;
 mod shaders;
-mod swapchain;
 mod syncer;
-
-use std::u64;
+mod presenter;
+mod renderer;
 
 use crate::{instance::Instance, model::Vertex};
 use ash::vk::{
     ComponentMapping, Extent2D, Fence, Framebuffer, FramebufferCreateInfo, Image, ImageAspectFlags,
     ImageSubresourceRange, ImageView, ImageViewCreateInfo, ImageViewType, PipelineStageFlags,
-    PresentInfoKHR, Queue, Semaphore, SubmitInfo, SurfaceKHR,
+    Queue, Semaphore, SubmitInfo, SurfaceKHR,
 };
 use commander::Commander;
 use dealer::Dealer;
 pub use device::Device;
 use pipeline::Pipeline;
+use presenter::Presenter;
 use render_pass::RenderPass;
-use swapchain::Swapchain;
 use syncer::Syncer;
 
 const FLIGHTS: usize = 2;
@@ -34,8 +33,7 @@ pub struct GraphicsEngine {
     syncer: Syncer,
     dealer: Dealer,
     // Presentation
-    present_queue: Queue,
-    swapchain: Swapchain,
+    presenter: Presenter,
     // Computation
     transfer_queue: Queue,
     graphics_queue: Queue,
@@ -59,13 +57,12 @@ impl GraphicsEngine {
         let syncer = Syncer::new(&device);
 
         // Presentation
-        let swapchain = Swapchain::new(&device, &surface);
-        let present_queue = unsafe { device.get_device_queue(device.infos.present_idx, 0) };
+        let presenter = Presenter::new(&device, &surface);
 
         // Computation
         let graphics_queue = unsafe { device.get_device_queue(device.infos.graphics_idx, 0) };
         let transfer_queue = unsafe { device.get_device_queue(device.infos.transfer_idx, 0) };
-        let image_views = create_image_views(&device, &swapchain.images);
+        let image_views = create_image_views(&device, presenter.swapchain_images());
         let render_pass = RenderPass::new(&device);
         let pipeline = Pipeline::new(&device, &render_pass);
         let frame_buffers = create_frame_buffers(
@@ -82,9 +79,8 @@ impl GraphicsEngine {
             syncer,
             dealer,
             graphics_queue,
-            present_queue,
+            presenter,
             transfer_queue,
-            swapchain,
             image_views,
             render_pass,
             pipeline,
@@ -103,9 +99,7 @@ impl GraphicsEngine {
             self.commander.destroy(&self.device);
 
             // Presentation
-            self.device
-                .swapchain_khr()
-                .destroy_swapchain(*self.swapchain, None);
+            self.presenter.destroy(&self.device);
 
             // Computation
             for framebuffer in &self.frame_buffers {
@@ -146,7 +140,7 @@ impl GraphicsEngine {
         // Acquire next image
         let signal_semaphore = img_available;
         let signal_fence = Fence::null();
-        let image_idx = self.acquire_next_image(signal_semaphore, signal_fence);
+        let image_idx = self.presenter.acquire_next_image(&self.device, signal_semaphore, signal_fence);
 
         // RECORD : draw
         self.commander.record_draw(
@@ -172,7 +166,7 @@ impl GraphicsEngine {
 
         // PRESENT
         let wait_semaphores = [rendering_done];
-        self.present(image_idx, &wait_semaphores);
+        self.presenter.present(&self.device, image_idx, &wait_semaphores);
 
         self.syncer.step_flight();
     }
@@ -187,19 +181,6 @@ impl GraphicsEngine {
                 .queue_submit(self.transfer_queue, &[submit_info], signal_fence)
         }
         .expect("Failed to submit upload_vertices cmd buf.");
-    }
-
-    fn acquire_next_image(&self, signal_semaphore: Semaphore, signal_fence: Fence) -> u32 {
-        let (idx, _) = unsafe {
-            self.device.swapchain_khr().acquire_next_image(
-                *self.swapchain,
-                u64::MAX,
-                signal_semaphore,
-                signal_fence,
-            )
-        }
-        .expect("Failed to acquire next swapchain image.");
-        idx
     }
 
     fn draw(
@@ -220,21 +201,6 @@ impl GraphicsEngine {
                 .queue_submit(self.graphics_queue, &[submit_info], signal_fence)
         }
         .expect("Failed to submit draw cmd buf.");
-    }
-
-    fn present(&self, image_idx: u32, wait_semaphores: &[Semaphore]) {
-        let swapchains = [*self.swapchain];
-        let indices = [image_idx];
-        let present_info = PresentInfoKHR::default()
-            .wait_semaphores(&wait_semaphores)
-            .swapchains(&swapchains)
-            .image_indices(&indices);
-        unsafe {
-            self.device
-                .swapchain_khr()
-                .queue_present(self.present_queue, &present_info)
-        }
-        .expect("Failed to present image.");
     }
 }
 

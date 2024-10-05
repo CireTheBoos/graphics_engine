@@ -5,7 +5,7 @@ use ash::vk::{
     SwapchainCreateInfoKHR, SwapchainKHR,
 };
 
-use super::device::Device;
+use crate::graphics_engine::device::Device;
 
 pub struct Swapchain {
     swapchain: SwapchainKHR,
