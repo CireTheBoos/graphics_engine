@@ -2,9 +2,12 @@ mod allocator;
 mod device;
 mod presenter;
 mod renderer;
-mod sync;
 
-use crate::{instance::Instance, model::Vertex};
+use crate::{
+    boilerplate::{new_fence, new_semaphore, wait_reset_fences},
+    instance::Instance,
+    model::Vertex,
+};
 use ash::vk::{Fence, Semaphore, SurfaceKHR};
 pub use device::Device;
 pub use presenter::Presenter;
@@ -41,9 +44,9 @@ impl GraphicsEngine {
         let renderer = Renderer::new(&device, &presenter, &allocator);
 
         // Sync
-        let img_available = sync::new_semaphore(&device);
-        let render_finished = sync::new_semaphore(&device);
-        let presented = sync::new_fence(&device, true);
+        let img_available = new_semaphore(&device);
+        let render_finished = new_semaphore(&device);
+        let presented = new_fence(&device, true);
 
         GraphicsEngine {
             surface,
@@ -77,7 +80,7 @@ impl GraphicsEngine {
     pub fn frame(&mut self, vertices: &Vec<Vertex>) {
         // WAIT
         let fences = [self.presented];
-        sync::wait_reset_fences(&self.device, &fences, false, None);
+        wait_reset_fences(&self.device, &fences, false, None);
 
         // Acquire next image
         let signal_semaphore = self.img_available;

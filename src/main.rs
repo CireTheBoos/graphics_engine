@@ -1,3 +1,4 @@
+mod boilerplate;
 mod graphics_engine;
 mod instance;
 mod model;

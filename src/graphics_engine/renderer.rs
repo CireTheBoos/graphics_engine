@@ -4,7 +4,7 @@ mod render_pass;
 mod rscs;
 mod shaders;
 
-use super::{allocator::Buffer as CustomBuffer, sync};
+use super::allocator::Buffer as CustomBuffer;
 use ash::vk::{
     CommandBuffer, CommandPool, Fence, Framebuffer, ImageView, PipelineStageFlags, Queue,
     Semaphore, SubmitInfo,
@@ -14,6 +14,7 @@ pub use render_pass::RenderPass;
 use vk_mem::Allocator;
 
 use crate::{
+    boilerplate::new_semaphore,
     graphics_engine::{Device, Presenter},
     model::Vertex,
 };
@@ -69,7 +70,7 @@ impl Renderer {
             &vertex_buffer,
         );
 
-        let transfer_done = sync::new_semaphore(&device);
+        let transfer_done = new_semaphore(&device);
 
         Renderer {
             graphics_queue,
@@ -146,7 +147,7 @@ impl Renderer {
         );
     }
 
-    pub fn submit_transfer(
+    fn submit_transfer(
         &self,
         device: &Device,
         signal_semaphores: &[Semaphore],
@@ -160,7 +161,7 @@ impl Renderer {
             .expect("Failed to submit upload_vertices cmd buf.");
     }
 
-    pub fn submit_draw(
+    fn submit_draw(
         &self,
         device: &Device,
         wait_semaphores: &[Semaphore],
@@ -178,7 +179,7 @@ impl Renderer {
             .expect("Failed to submit draw cmd buf.");
     }
 
-    pub fn copy_vertices(&mut self, vertices: &Vec<Vertex>, allocator: &Allocator) {
+    fn copy_vertices(&mut self, vertices: &Vec<Vertex>, allocator: &Allocator) {
         unsafe {
             let staging_vertices = allocator
                 .map_memory(&mut self.staging_vertex_buffer.allocation)
