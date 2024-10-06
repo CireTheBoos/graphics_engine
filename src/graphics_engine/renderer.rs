@@ -3,14 +3,13 @@ mod render_pass;
 mod shaders;
 
 use ash::vk::{
-    ComponentMapping, Extent2D, Fence, Framebuffer, FramebufferCreateInfo, Image, ImageAspectFlags,
-    ImageSubresourceRange, ImageView, ImageViewCreateInfo, ImageViewType, PipelineStageFlags,
-    Queue, Semaphore, SubmitInfo,
+    Buffer, BufferCreateInfo, BufferUsageFlags, ComponentMapping, Extent2D, Fence, Framebuffer, FramebufferCreateInfo, Image, ImageAspectFlags, ImageSubresourceRange, ImageView, ImageViewCreateInfo, ImageViewType, MemoryPropertyFlags, PipelineStageFlags, Queue, Semaphore, SharingMode, SubmitInfo
 };
 pub use pipeline::Pipeline;
 pub use render_pass::RenderPass;
+use vk_mem::{Alloc, Allocation, AllocationCreateInfo, Allocator};
 
-use crate::graphics_engine::{Commander, Dealer, Device, Presenter, Syncer};
+use crate::{graphics_engine::{Commander, Device, Presenter, Syncer}, model::{Vertex, MAX_VERTICES}};
 
 pub struct Renderer {
     transfer_queue: Queue,
@@ -19,10 +18,15 @@ pub struct Renderer {
     render_pass: RenderPass,
     pipeline: Pipeline,
     frame_buffers: Vec<Framebuffer>,
+
+    pub vertex_buffer: Buffer,
+    vertex_allocation: Allocation,
+    pub staging_vertex_buffer: Buffer,
+    staging_vertex_allocation: Allocation,
 }
 
 impl Renderer {
-    pub fn new(device: &Device, presenter: &Presenter) -> Renderer {
+    pub fn new(device: &Device, presenter: &Presenter, allocator: &Allocator) -> Renderer {
         let graphics_queue = unsafe { device.get_device_queue(device.infos.graphics_idx, 0) };
         let transfer_queue = unsafe { device.get_device_queue(device.infos.transfer_idx, 0) };
         let image_views = create_image_views(&device, presenter.swapchain_images());
@@ -34,6 +38,12 @@ impl Renderer {
             &device.infos.capabilities.current_extent,
             &device,
         );
+
+        // Allocate buffers
+        let (vertex_buffer, vertex_allocation) = allocate_vertex_buffer(allocator, device);
+        let (staging_vertex_buffer, staging_vertex_allocation) =
+            allocate_staging_vertex_buffer(allocator, device);
+
         Renderer {
             graphics_queue,
             transfer_queue,
@@ -41,11 +51,22 @@ impl Renderer {
             render_pass,
             pipeline,
             frame_buffers,
+
+            vertex_buffer,
+            vertex_allocation,
+            staging_vertex_buffer,
+            staging_vertex_allocation,
         }
     }
 
-    pub fn destroy(&mut self, device: &Device) {
+    pub fn destroy(&mut self, device: &Device, allocator: &Allocator) {
         unsafe {
+            allocator
+                .destroy_buffer(self.vertex_buffer, &mut self.vertex_allocation);
+            allocator.destroy_buffer(
+                self.staging_vertex_buffer,
+                &mut self.staging_vertex_allocation,
+            );
             for framebuffer in &self.frame_buffers {
                 device.destroy_framebuffer(*framebuffer, None);
             }
@@ -96,7 +117,6 @@ impl Renderer {
         &self,
         device: &Device,
         syncer: &Syncer,
-        dealer: &Dealer,
         commander: &Commander,
     ) {
         commander.record_draw(
@@ -105,8 +125,22 @@ impl Renderer {
             &self.frame_buffers[syncer.current_flight().idx],
             &self.render_pass,
             &self.pipeline,
-            &dealer.vertex_buffer,
+            &self.vertex_buffer,
         );
+    }
+
+    pub fn copy_vertices(&mut self, vertices: &Vec<Vertex>, allocator: &Allocator) {
+        unsafe {
+            let staging_vertices = allocator
+                .map_memory(&mut self.staging_vertex_allocation)
+                .expect("Failed to map memory.");
+            staging_vertices.copy_from(
+                vertices.as_ptr() as *const u8,
+                Vertex::size_of() * vertices.len(),
+            );
+            allocator
+                .unmap_memory(&mut self.staging_vertex_allocation);
+        }
     }
 }
 
@@ -161,4 +195,38 @@ fn create_frame_buffers(
                 .expect("Failed to create framebuffer.")
         })
         .collect()
+}
+
+fn allocate_vertex_buffer(allocator: &Allocator, device: &Device) -> (Buffer, Allocation) {
+    let queue_family_indices = [device.infos.graphics_idx, device.infos.transfer_idx];
+    let buffer_info = BufferCreateInfo::default()
+        .queue_family_indices(&queue_family_indices)
+        .sharing_mode(SharingMode::CONCURRENT)
+        .size(size_of::<Vertex>() as u64 * MAX_VERTICES)
+        .usage(BufferUsageFlags::VERTEX_BUFFER | BufferUsageFlags::TRANSFER_DST);
+
+    let create_info = AllocationCreateInfo {
+        required_flags: MemoryPropertyFlags::DEVICE_LOCAL,
+        ..Default::default()
+    };
+
+    unsafe { allocator.create_buffer(&buffer_info, &create_info) }
+        .expect("Failed to create vertex buffer.")
+}
+
+fn allocate_staging_vertex_buffer(allocator: &Allocator, device: &Device) -> (Buffer, Allocation) {
+    let queue_family_indices = [device.infos.transfer_idx];
+    let buffer_info = BufferCreateInfo::default()
+        .queue_family_indices(&queue_family_indices)
+        .sharing_mode(SharingMode::EXCLUSIVE)
+        .size(size_of::<Vertex>() as u64 * MAX_VERTICES)
+        .usage(BufferUsageFlags::TRANSFER_SRC);
+
+    let create_info = AllocationCreateInfo {
+        required_flags: MemoryPropertyFlags::HOST_VISIBLE | MemoryPropertyFlags::HOST_COHERENT,
+        ..Default::default()
+    };
+
+    unsafe { allocator.create_buffer(&buffer_info, &create_info) }
+        .expect("Failed to create vertex buffer.")
 }

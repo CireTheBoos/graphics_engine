@@ -9,8 +9,10 @@ use crate::model::{Vertex, MAX_VERTICES};
 
 use crate::graphics_engine::{
     renderer::{Pipeline, RenderPass},
-    Dealer, Device, FLIGHTS,
+    Device, FLIGHTS,
 };
+
+use super::Renderer;
 
 // Commander translates boilerplate cmd buf code in meaningful fns for renderer. It does NOT submit or sync. :
 // - Hold pools
@@ -26,7 +28,7 @@ pub struct Commander {
 }
 
 impl Commander {
-    pub fn new(device: &Device, dealer: &Dealer) -> Commander {
+    pub fn new(device: &Device, renderer: &Renderer) -> Commander {
         // Pools
         let graphics_pool = create_pool(
             device,
@@ -41,7 +43,7 @@ impl Commander {
 
         // Command buffers
         let draws = Commander::draws(graphics_pool, device);
-        let transfer_vertices = Commander::transfer_vertices(transfer_pool, device, dealer);
+        let transfer_vertices = Commander::transfer_vertices(transfer_pool, device, &renderer.staging_vertex_buffer, &renderer.vertex_buffer);
 
         Commander {
             graphics_pool,
@@ -69,7 +71,7 @@ impl Commander {
     }
 
     // allocate and record
-    fn transfer_vertices(pool: CommandPool, device: &Device, dealer: &Dealer) -> CommandBuffer {
+    fn transfer_vertices(pool: CommandPool, device: &Device, src_buffer: &Buffer, dst_buffer: &Buffer) -> CommandBuffer {
         let allocate_info = CommandBufferAllocateInfo::default()
             .command_pool(pool)
             .level(CommandBufferLevel::PRIMARY)
@@ -87,8 +89,8 @@ impl Commander {
         unsafe {
             device.cmd_copy_buffer(
                 transfer_vertices,
-                dealer.staging_vertex_buffer,
-                dealer.vertex_buffer,
+                *src_buffer,
+                *dst_buffer,
                 &regions,
             )
         };

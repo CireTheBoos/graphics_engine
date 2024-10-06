@@ -1,5 +1,4 @@
 mod commander;
-mod dealer;
 mod device;
 mod presenter;
 mod renderer;
@@ -8,11 +7,11 @@ mod syncer;
 use crate::{instance::Instance, model::Vertex};
 use ash::vk::{Fence, PipelineStageFlags, SurfaceKHR};
 pub use commander::Commander;
-pub use dealer::Dealer;
 pub use device::Device;
 pub use presenter::Presenter;
 pub use renderer::Renderer;
 pub use syncer::Syncer;
+use vk_mem::{Allocator, AllocatorCreateInfo};
 
 const FLIGHTS: usize = 2;
 
@@ -20,10 +19,10 @@ const FLIGHTS: usize = 2;
 // - Render imgs from vertices
 // - Presents them
 pub struct GraphicsEngine {
+    allocator: Allocator,
     // Support
     commander: Commander,
     syncer: Syncer,
-    dealer: Dealer,
     // Assistants
     presenter: Presenter,
     renderer: Renderer,
@@ -34,26 +33,34 @@ pub struct GraphicsEngine {
 
 impl GraphicsEngine {
     pub fn new(instance: &Instance, surface: SurfaceKHR) -> GraphicsEngine {
+        
+
         // Essentials
         let device = Device::new(instance, &surface);
 
-        // Utils
-        let dealer = Dealer::new(instance, &device);
-        let commander = Commander::new(&device, &dealer);
-        let syncer = Syncer::new(&device);
+        // Allocator
+        let create_info = AllocatorCreateInfo::new(instance, &device, device.infos.physical_device);
+        let allocator =
+            unsafe { Allocator::new(create_info) }.expect("Failed to create allocator.");
+
+        
 
         // Presentation
         let presenter = Presenter::new(&device, &surface);
 
         // Computation
-        let renderer = Renderer::new(&device, &presenter);
+        let renderer = Renderer::new(&device, &presenter, &allocator);
+
+        // Utils
+        let commander = Commander::new(&device, &renderer);
+        let syncer = Syncer::new(&device);
 
         GraphicsEngine {
+            allocator,
             surface,
             device,
             commander,
             syncer,
-            dealer,
             presenter,
             renderer,
         }
@@ -65,7 +72,6 @@ impl GraphicsEngine {
             self.device.device_wait_idle().unwrap();
 
             // Utils
-            self.dealer.destroy();
             self.syncer.destroy(&self.device);
             self.commander.destroy(&self.device);
 
@@ -73,7 +79,7 @@ impl GraphicsEngine {
             self.presenter.destroy(&self.device);
 
             // Computation
-            self.renderer.destroy(&self.device);
+            self.renderer.destroy(&self.device, &self.allocator);
 
             // Essentials
             instance.surface_khr().destroy_surface(self.surface, None);
@@ -94,7 +100,7 @@ impl GraphicsEngine {
         syncer::wait_fences(&self.device, &fences);
 
         // Update staging vertex buffer
-        self.dealer.copy_vertices(vertices);
+        self.renderer.copy_vertices(vertices, &self.allocator);
 
         // SUBMIT : Transfer
         let signal_semaphores = [transfer_done];
@@ -115,7 +121,7 @@ impl GraphicsEngine {
 
         // RECORD : draw
         self.renderer
-            .record_draw(&self.device, &self.syncer, &self.dealer, &self.commander);
+            .record_draw(&self.device, &self.syncer, &self.commander);
 
         // SUBMIT : draw
         let wait_semaphores = [img_available, transfer_done];
