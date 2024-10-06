@@ -5,7 +5,7 @@ use ash::vk::{
 };
 
 use crate::{
-    allocator::Buffer,
+    graphics_engine::allocator::Buffer,
     graphics_engine::{Device, FLIGHTS},
     model::{Vertex, MAX_VERTICES},
 };

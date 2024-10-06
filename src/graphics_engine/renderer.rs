@@ -4,7 +4,7 @@ mod render_pass;
 mod rscs;
 mod shaders;
 
-use crate::allocator::Buffer as CustomBuffer;
+use super::{allocator::Buffer as CustomBuffer, sync};
 use ash::vk::{
     CommandBuffer, CommandPool, Fence, Framebuffer, ImageView, PipelineStageFlags, Queue,
     Semaphore, SubmitInfo,
@@ -34,6 +34,8 @@ pub struct Renderer {
     transfer_pool: CommandPool,
     pub draws: Vec<CommandBuffer>,
     pub transfer_vertices: CommandBuffer,
+    // sync
+    transfer_done: Semaphore,
 }
 
 impl Renderer {
@@ -67,6 +69,8 @@ impl Renderer {
             &vertex_buffer,
         );
 
+        let transfer_done = sync::new_semaphore(&device);
+
         Renderer {
             graphics_queue,
             transfer_queue,
@@ -82,6 +86,8 @@ impl Renderer {
             transfer_pool,
             draws,
             transfer_vertices,
+
+            transfer_done,
         }
     }
 
@@ -101,7 +107,43 @@ impl Renderer {
             for image_view in &self.image_views {
                 device.destroy_image_view(*image_view, None);
             }
+
+            device.destroy_semaphore(self.transfer_done, None);
         }
+    }
+
+    pub fn submit_render(
+        &mut self,
+        vertices: &Vec<Vertex>,
+        device: &Device,
+        allocator: &Allocator,
+        img_available: &[Semaphore],
+        render_finished: &[Semaphore],
+        presented: Fence,
+    ) {
+        // Update staging vertex buffer
+        self.copy_vertices(vertices, allocator);
+
+        // SUBMIT : Transfer
+        let signal_semaphores = [self.transfer_done];
+        let signal_fence = Fence::null();
+        self.submit_transfer(device, &signal_semaphores, signal_fence);
+
+        // RECORD : draw
+        self.record_draw(device, 0);
+
+        // SUBMIT : draw
+        let wait_semaphores = [img_available[0], self.transfer_done];
+        let wait_dst_stage_mask = [PipelineStageFlags::COLOR_ATTACHMENT_OUTPUT];
+        let signal_semaphores = [render_finished[0]];
+        let signal_fence = presented;
+        self.submit_draw(
+            device,
+            &wait_semaphores,
+            &wait_dst_stage_mask,
+            &signal_semaphores,
+            signal_fence,
+        );
     }
 
     pub fn submit_transfer(

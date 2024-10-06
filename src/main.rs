@@ -1,8 +1,6 @@
-mod allocator;
 mod graphics_engine;
 mod instance;
 mod model;
-mod sync;
 
 use ash::vk::SurfaceKHR;
 use graphics_engine::GraphicsEngine;

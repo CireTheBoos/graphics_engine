@@ -1,9 +1,11 @@
+mod allocator;
 mod device;
 mod presenter;
 mod renderer;
+mod sync;
 
-use crate::{instance::Instance, model::Vertex, sync};
-use ash::vk::{Fence, PipelineStageFlags, Semaphore, SurfaceKHR};
+use crate::{instance::Instance, model::Vertex};
+use ash::vk::{Fence, Semaphore, SurfaceKHR};
 pub use device::Device;
 pub use presenter::Presenter;
 pub use renderer::Renderer;
@@ -24,7 +26,6 @@ pub struct GraphicsEngine {
     renderer: Renderer,
     // Sync
     img_available: Semaphore,
-    transfer_done: Semaphore,
     render_finished: Semaphore,
     presented: Fence,
 }
@@ -33,7 +34,7 @@ impl GraphicsEngine {
     pub fn new(instance: &Instance, surface: SurfaceKHR) -> GraphicsEngine {
         // Essentials
         let device = Device::new(instance, &surface);
-        let allocator = crate::allocator::new(instance, &device, device.infos.physical_device);
+        let allocator = allocator::new(instance, &device, device.infos.physical_device);
 
         // Missions
         let presenter = Presenter::new(&device, &surface);
@@ -41,7 +42,6 @@ impl GraphicsEngine {
 
         // Sync
         let img_available = sync::new_semaphore(&device);
-        let transfer_done = sync::new_semaphore(&device);
         let render_finished = sync::new_semaphore(&device);
         let presented = sync::new_fence(&device, true);
 
@@ -52,7 +52,6 @@ impl GraphicsEngine {
             presenter,
             renderer,
             img_available,
-            transfer_done,
             render_finished,
             presented,
         }
@@ -61,14 +60,16 @@ impl GraphicsEngine {
     // Destroy vulkan objects (order matters)
     pub fn destroy(&mut self, instance: &Instance) {
         unsafe {
+            // wait unfinished work
             self.device.device_wait_idle().unwrap();
-
+            // destroy syncs
             self.device.destroy_semaphore(self.img_available, None);
             self.device.destroy_semaphore(self.render_finished, None);
-            self.device.destroy_semaphore(self.transfer_done, None);
             self.device.destroy_fence(self.presented, None);
+            // destroy missions
             self.presenter.destroy(&self.device);
             self.renderer.destroy(&self.device, &self.allocator);
+            // destroy surface
             instance.surface_khr().destroy_surface(self.surface, None);
         }
     }
@@ -78,15 +79,6 @@ impl GraphicsEngine {
         let fences = [self.presented];
         sync::wait_reset_fences(&self.device, &fences, false, None);
 
-        // Update staging vertex buffer
-        self.renderer.copy_vertices(vertices, &self.allocator);
-
-        // SUBMIT : Transfer
-        let signal_semaphores = [self.transfer_done];
-        let signal_fence = Fence::null();
-        self.renderer
-            .submit_transfer(&self.device, &signal_semaphores, signal_fence);
-
         // Acquire next image
         let signal_semaphore = self.img_available;
         let signal_fence = Fence::null();
@@ -94,23 +86,20 @@ impl GraphicsEngine {
             self.presenter
                 .acquire_next_image(&self.device, signal_semaphore, signal_fence);
 
-        // RECORD : draw
-        self.renderer.record_draw(&self.device, 0);
-
-        // SUBMIT : draw
-        let wait_semaphores = [self.img_available, self.transfer_done];
-        let wait_dst_stage_mask = [PipelineStageFlags::COLOR_ATTACHMENT_OUTPUT];
+        // submit rendering
+        let wait_semaphores = [self.img_available];
         let signal_semaphores = [self.render_finished];
         let signal_fence = self.presented;
-        self.renderer.submit_draw(
+        self.renderer.submit_render(
+            vertices,
             &self.device,
+            &self.allocator,
             &wait_semaphores,
-            &wait_dst_stage_mask,
             &signal_semaphores,
             signal_fence,
         );
 
-        // PRESENT
+        //submit present
         let wait_semaphores = [self.render_finished];
         self.presenter
             .present(&self.device, image_idx, &wait_semaphores);
