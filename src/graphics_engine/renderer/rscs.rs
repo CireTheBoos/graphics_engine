@@ -6,7 +6,7 @@ use ash::vk::{
 use vk_mem::{Alloc, AllocationCreateInfo, Allocator};
 
 use crate::{
-    graphics_engine::{allocator::Buffer as CustomBuffer, Device},
+    graphics_engine::{device::CustomBuffer, Device},
     model::{Vertex, MAX_VERTICES},
 };
 

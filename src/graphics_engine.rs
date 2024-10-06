@@ -1,4 +1,3 @@
-mod allocator;
 mod device;
 mod presenter;
 mod renderer;
@@ -12,7 +11,6 @@ use ash::vk::{Fence, Semaphore, SurfaceKHR};
 pub use device::Device;
 pub use presenter::Presenter;
 pub use renderer::Renderer;
-use vk_mem::Allocator;
 
 const FLIGHTS: usize = 2;
 
@@ -20,8 +18,7 @@ const FLIGHTS: usize = 2;
 // - Renders imgs from vertices
 // - Presents them
 pub struct GraphicsEngine {
-    // Essentials ( /!\ allocator must drop before device )
-    allocator: Allocator,
+    // Essentials
     surface: SurfaceKHR,
     device: Device,
     // Missions
@@ -37,11 +34,10 @@ impl GraphicsEngine {
     pub fn new(instance: &Instance, surface: SurfaceKHR) -> GraphicsEngine {
         // Essentials
         let device = Device::new(instance, &surface);
-        let allocator = allocator::new(instance, &device, device.infos.physical_device);
 
         // Missions
         let presenter = Presenter::new(&device, &surface);
-        let renderer = Renderer::new(&device, &presenter, &allocator);
+        let renderer = Renderer::new(&device, &presenter);
 
         // Sync
         let img_available = new_semaphore(&device);
@@ -51,7 +47,6 @@ impl GraphicsEngine {
         GraphicsEngine {
             surface,
             device,
-            allocator,
             presenter,
             renderer,
             img_available,
@@ -71,7 +66,7 @@ impl GraphicsEngine {
             self.device.destroy_fence(self.presented, None);
             // destroy missions
             self.presenter.destroy(&self.device);
-            self.renderer.destroy(&self.device, &self.allocator);
+            self.renderer.destroy(&self.device, self.device.allocator());
             // destroy surface
             instance.surface_khr().destroy_surface(self.surface, None);
         }
@@ -94,9 +89,8 @@ impl GraphicsEngine {
         let signal_semaphores = [self.render_finished];
         let signal_fence = self.presented;
         self.renderer.submit_render(
-            vertices,
             &self.device,
-            &self.allocator,
+            vertices,
             &wait_semaphores,
             &signal_semaphores,
             signal_fence,

@@ -4,7 +4,6 @@ mod render_pass;
 mod rscs;
 mod shaders;
 
-use super::allocator::Buffer as CustomBuffer;
 use ash::vk::{
     CommandBuffer, CommandPool, Fence, Framebuffer, ImageView, PipelineStageFlags, Queue,
     Semaphore, SubmitInfo,
@@ -18,6 +17,8 @@ use crate::{
     graphics_engine::{Device, Presenter},
     model::Vertex,
 };
+
+use super::device::CustomBuffer;
 
 pub struct Renderer {
     // queues
@@ -40,7 +41,7 @@ pub struct Renderer {
 }
 
 impl Renderer {
-    pub fn new(device: &Device, presenter: &Presenter, allocator: &Allocator) -> Renderer {
+    pub fn new(device: &Device, presenter: &Presenter) -> Renderer {
         let graphics_queue = unsafe { device.get_device_queue(device.infos.graphics_idx, 0) };
         let transfer_queue = unsafe { device.get_device_queue(device.infos.transfer_idx, 0) };
         let image_views = rscs::create_image_views(&device, presenter.swapchain_images());
@@ -54,8 +55,9 @@ impl Renderer {
         );
 
         // Allocate buffers
-        let vertex_buffer = rscs::allocate_vertex_buffer(allocator, device);
-        let staging_vertex_buffer = rscs::allocate_staging_vertex_buffer(allocator, device);
+        let vertex_buffer = rscs::allocate_vertex_buffer(device.allocator(), device);
+        let staging_vertex_buffer =
+            rscs::allocate_staging_vertex_buffer(device.allocator(), device);
 
         // Pools
         let graphics_pool = cmds::create_graphics_pool(device);
@@ -115,15 +117,14 @@ impl Renderer {
 
     pub fn submit_render(
         &mut self,
-        vertices: &Vec<Vertex>,
         device: &Device,
-        allocator: &Allocator,
+        vertices: &Vec<Vertex>,
         img_available: &[Semaphore],
         render_finished: &[Semaphore],
         presented: Fence,
     ) {
         // Update staging vertex buffer
-        self.copy_vertices(vertices, allocator);
+        self.copy_vertices(device, vertices);
 
         // SUBMIT : Transfer
         let signal_semaphores = [self.transfer_done];
@@ -179,16 +180,19 @@ impl Renderer {
             .expect("Failed to submit draw cmd buf.");
     }
 
-    fn copy_vertices(&mut self, vertices: &Vec<Vertex>, allocator: &Allocator) {
+    fn copy_vertices(&mut self, device: &Device, vertices: &Vec<Vertex>) {
         unsafe {
-            let staging_vertices = allocator
+            let staging_vertices = device
+                .allocator()
                 .map_memory(&mut self.staging_vertex_buffer.allocation)
                 .expect("Failed to map memory.");
             staging_vertices.copy_from(
                 vertices.as_ptr() as *const u8,
                 Vertex::size_of() * vertices.len(),
             );
-            allocator.unmap_memory(&mut self.staging_vertex_buffer.allocation);
+            device
+                .allocator()
+                .unmap_memory(&mut self.staging_vertex_buffer.allocation);
         }
     }
 }

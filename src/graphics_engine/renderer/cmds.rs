@@ -5,8 +5,7 @@ use ash::vk::{
 };
 
 use crate::{
-    graphics_engine::allocator::Buffer,
-    graphics_engine::{Device, FLIGHTS},
+    graphics_engine::{device::CustomBuffer, Device, FLIGHTS},
     model::{Vertex, MAX_VERTICES},
 };
 
@@ -50,8 +49,8 @@ pub fn allocate_draws(pool: CommandPool, device: &Device) -> Vec<CommandBuffer> 
 pub fn allocate_record_transfer(
     pool: CommandPool,
     device: &Device,
-    src_buffer: &Buffer,
-    dst_buffer: &Buffer,
+    src_buffer: &CustomBuffer,
+    dst_buffer: &CustomBuffer,
 ) -> CommandBuffer {
     let allocate_info = CommandBufferAllocateInfo::default()
         .command_pool(pool)
