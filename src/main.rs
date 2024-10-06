@@ -1,6 +1,8 @@
+mod allocator;
 mod graphics_engine;
 mod instance;
 mod model;
+mod sync;
 
 use ash::vk::SurfaceKHR;
 use graphics_engine::GraphicsEngine;
@@ -74,10 +76,7 @@ impl ApplicationHandler for App {
             }
             WindowEvent::RedrawRequested => {
                 self.model.step_if_enough_time();
-                self.renderer
-                    .as_mut()
-                    .unwrap()
-                    .render_frame(&self.model.vertices);
+                self.renderer.as_mut().unwrap().frame(&self.model.vertices);
                 // Request "Redraw" again, making it loop as fast as possible
                 self.window.as_ref().unwrap().request_redraw();
             }

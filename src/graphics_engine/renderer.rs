@@ -2,14 +2,24 @@ mod pipeline;
 mod render_pass;
 mod shaders;
 
+use crate::allocator::Buffer as CustomBuffer;
 use ash::vk::{
-    Buffer, BufferCopy, BufferCreateInfo, BufferUsageFlags, ClearValue, CommandBuffer, CommandBufferAllocateInfo, CommandBufferBeginInfo, CommandBufferLevel, CommandPool, CommandPoolCreateFlags, CommandPoolCreateInfo, ComponentMapping, Extent2D, Fence, Framebuffer, FramebufferCreateInfo, Image, ImageAspectFlags, ImageSubresourceRange, ImageView, ImageViewCreateInfo, ImageViewType, MemoryPropertyFlags, Offset2D, PipelineBindPoint, PipelineStageFlags, Queue, Rect2D, RenderPassBeginInfo, Semaphore, SharingMode, SubmitInfo, SubpassContents
+    Buffer, BufferCopy, BufferCreateInfo, BufferUsageFlags, ClearValue, CommandBuffer,
+    CommandBufferAllocateInfo, CommandBufferBeginInfo, CommandBufferLevel, CommandPool,
+    CommandPoolCreateFlags, CommandPoolCreateInfo, ComponentMapping, Extent2D, Fence, Framebuffer,
+    FramebufferCreateInfo, Image, ImageAspectFlags, ImageSubresourceRange, ImageView,
+    ImageViewCreateInfo, ImageViewType, MemoryPropertyFlags, Offset2D, PipelineBindPoint,
+    PipelineStageFlags, Queue, Rect2D, RenderPassBeginInfo, Semaphore, SharingMode, SubmitInfo,
+    SubpassContents,
 };
 pub use pipeline::Pipeline;
 pub use render_pass::RenderPass;
-use vk_mem::{Alloc, Allocation, AllocationCreateInfo, Allocator};
+use vk_mem::{Alloc, AllocationCreateInfo, Allocator};
 
-use crate::{graphics_engine::{Device, Presenter, Syncer}, model::{Vertex, MAX_VERTICES}};
+use crate::{
+    graphics_engine::{Device, Presenter},
+    model::{Vertex, MAX_VERTICES},
+};
 
 use super::FLIGHTS;
 
@@ -21,10 +31,8 @@ pub struct Renderer {
     pipeline: Pipeline,
     frame_buffers: Vec<Framebuffer>,
 
-    pub vertex_buffer: Buffer,
-    vertex_allocation: Allocation,
-    pub staging_vertex_buffer: Buffer,
-    staging_vertex_allocation: Allocation,
+    vertex_buffer: CustomBuffer,
+    staging_vertex_buffer: CustomBuffer,
 
     graphics_pool: CommandPool,
     transfer_pool: CommandPool,
@@ -47,9 +55,8 @@ impl Renderer {
         );
 
         // Allocate buffers
-        let (vertex_buffer, vertex_allocation) = allocate_vertex_buffer(allocator, device);
-        let (staging_vertex_buffer, staging_vertex_allocation) =
-            allocate_staging_vertex_buffer(allocator, device);
+        let vertex_buffer = allocate_vertex_buffer(allocator, device);
+        let staging_vertex_buffer = allocate_staging_vertex_buffer(allocator, device);
 
         // Pools
         let graphics_pool = create_pool(
@@ -65,7 +72,12 @@ impl Renderer {
 
         // Command buffers
         let draws = Renderer::draws(graphics_pool, device);
-        let transfer_vertices = Renderer::transfer_vertices(transfer_pool, device, &staging_vertex_buffer, &vertex_buffer);
+        let transfer_vertices = Renderer::transfer_vertices(
+            transfer_pool,
+            device,
+            &staging_vertex_buffer,
+            &vertex_buffer,
+        );
 
         Renderer {
             graphics_queue,
@@ -76,9 +88,7 @@ impl Renderer {
             frame_buffers,
 
             vertex_buffer,
-            vertex_allocation,
             staging_vertex_buffer,
-            staging_vertex_allocation,
 
             graphics_pool,
             transfer_pool,
@@ -98,7 +108,12 @@ impl Renderer {
     }
 
     // allocate and record
-    fn transfer_vertices(pool: CommandPool, device: &Device, src_buffer: &Buffer, dst_buffer: &Buffer) -> CommandBuffer {
+    fn transfer_vertices(
+        pool: CommandPool,
+        device: &Device,
+        src_buffer: &Buffer,
+        dst_buffer: &Buffer,
+    ) -> CommandBuffer {
         let allocate_info = CommandBufferAllocateInfo::default()
             .command_pool(pool)
             .level(CommandBufferLevel::PRIMARY)
@@ -113,14 +128,7 @@ impl Renderer {
 
         // Copy
         let regions = [BufferCopy::default().size(Vertex::size_of() as u64 * MAX_VERTICES)];
-        unsafe {
-            device.cmd_copy_buffer(
-                transfer_vertices,
-                *src_buffer,
-                *dst_buffer,
-                &regions,
-            )
-        };
+        unsafe { device.cmd_copy_buffer(transfer_vertices, *src_buffer, *dst_buffer, &regions) };
 
         // END
         unsafe { device.end_command_buffer(transfer_vertices) }
@@ -129,11 +137,7 @@ impl Renderer {
         transfer_vertices
     }
 
-    pub fn record_draw(
-        &self,
-        device: &Device,
-        flight_idx: usize,
-    ) {
+    pub fn record_draw(&self, device: &Device, flight_idx: usize) {
         let framebuffer = &self.frame_buffers[flight_idx];
         // BEGIN
         let begin_info = CommandBufferBeginInfo::default();
@@ -171,7 +175,7 @@ impl Renderer {
         };
 
         // bind vertex buffer
-        let vertex_buffers = [self.vertex_buffer];
+        let vertex_buffers = [*self.vertex_buffer];
         let offsets = [0];
         unsafe {
             device.cmd_bind_vertex_buffers(self.draws[flight_idx], 0, &vertex_buffers, &offsets)
@@ -193,12 +197,8 @@ impl Renderer {
             device.destroy_command_pool(self.graphics_pool, None);
             device.destroy_command_pool(self.transfer_pool, None);
 
-            allocator
-                .destroy_buffer(self.vertex_buffer, &mut self.vertex_allocation);
-            allocator.destroy_buffer(
-                self.staging_vertex_buffer,
-                &mut self.staging_vertex_allocation,
-            );
+            self.vertex_buffer.destroy(allocator);
+            self.staging_vertex_buffer.destroy(allocator);
 
             for framebuffer in &self.frame_buffers {
                 device.destroy_framebuffer(*framebuffer, None);
@@ -211,12 +211,7 @@ impl Renderer {
         }
     }
 
-    pub fn transfer(
-        &self,
-        device: &Device,
-        signal_semaphores: &[Semaphore],
-        signal_fence: Fence,
-    ) {
+    pub fn transfer(&self, device: &Device, signal_semaphores: &[Semaphore], signal_fence: Fence) {
         let command_buffers = [self.transfer_vertices];
         let submit_info = SubmitInfo::default()
             .command_buffers(&command_buffers)
@@ -228,13 +223,12 @@ impl Renderer {
     pub fn draw(
         &self,
         device: &Device,
-        syncer: &Syncer,
         wait_semaphores: &[Semaphore],
         wait_dst_stage_mask: &[PipelineStageFlags],
         signal_semaphores: &[Semaphore],
         signal_fence: Fence,
     ) {
-        let command_buffers = [self.draws[syncer.current_flight().idx]];
+        let command_buffers = [self.draws[0]];
         let submit_info = SubmitInfo::default()
             .wait_semaphores(&wait_semaphores)
             .signal_semaphores(&signal_semaphores)
@@ -247,14 +241,13 @@ impl Renderer {
     pub fn copy_vertices(&mut self, vertices: &Vec<Vertex>, allocator: &Allocator) {
         unsafe {
             let staging_vertices = allocator
-                .map_memory(&mut self.staging_vertex_allocation)
+                .map_memory(&mut self.staging_vertex_buffer.allocation)
                 .expect("Failed to map memory.");
             staging_vertices.copy_from(
                 vertices.as_ptr() as *const u8,
                 Vertex::size_of() * vertices.len(),
             );
-            allocator
-                .unmap_memory(&mut self.staging_vertex_allocation);
+            allocator.unmap_memory(&mut self.staging_vertex_buffer.allocation);
         }
     }
 }
@@ -312,7 +305,7 @@ fn create_frame_buffers(
         .collect()
 }
 
-fn allocate_vertex_buffer(allocator: &Allocator, device: &Device) -> (Buffer, Allocation) {
+fn allocate_vertex_buffer(allocator: &Allocator, device: &Device) -> CustomBuffer {
     let queue_family_indices = [device.infos.graphics_idx, device.infos.transfer_idx];
     let buffer_info = BufferCreateInfo::default()
         .queue_family_indices(&queue_family_indices)
@@ -325,11 +318,13 @@ fn allocate_vertex_buffer(allocator: &Allocator, device: &Device) -> (Buffer, Al
         ..Default::default()
     };
 
-    unsafe { allocator.create_buffer(&buffer_info, &create_info) }
-        .expect("Failed to create vertex buffer.")
+    let (buffer, allocation) = unsafe { allocator.create_buffer(&buffer_info, &create_info) }
+        .expect("Failed to create vertex buffer.");
+
+    CustomBuffer { buffer, allocation }
 }
 
-fn allocate_staging_vertex_buffer(allocator: &Allocator, device: &Device) -> (Buffer, Allocation) {
+fn allocate_staging_vertex_buffer(allocator: &Allocator, device: &Device) -> CustomBuffer {
     let queue_family_indices = [device.infos.transfer_idx];
     let buffer_info = BufferCreateInfo::default()
         .queue_family_indices(&queue_family_indices)
@@ -342,8 +337,10 @@ fn allocate_staging_vertex_buffer(allocator: &Allocator, device: &Device) -> (Bu
         ..Default::default()
     };
 
-    unsafe { allocator.create_buffer(&buffer_info, &create_info) }
-        .expect("Failed to create vertex buffer.")
+    let (buffer, allocation) = unsafe { allocator.create_buffer(&buffer_info, &create_info) }
+        .expect("Failed to create vertex buffer.");
+
+    CustomBuffer { buffer, allocation }
 }
 
 fn create_pool(device: &Device, queue_family: u32, flags: CommandPoolCreateFlags) -> CommandPool {

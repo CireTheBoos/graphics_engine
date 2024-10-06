@@ -1,8 +1,8 @@
 mod swapchain;
 
+use crate::graphics_engine::Device;
 use ash::vk::{Fence, Image, PresentInfoKHR, Queue, Semaphore, SurfaceKHR};
 use swapchain::Swapchain;
-use crate::graphics_engine::Device;
 
 pub struct Presenter {
     swapchain: Swapchain,
