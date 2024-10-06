@@ -18,7 +18,7 @@ pub fn new_fence(device: &Device, signaled: bool) -> Fence {
     unsafe { device.create_fence(&fence_create_info, None) }.expect("Failed to create fence.")
 }
 
-pub fn wait_fences(device: &Device, fences: &[Fence], wait_all: bool, timeout: Option<u64>) {
+pub fn wait_reset_fences(device: &Device, fences: &[Fence], wait_all: bool, timeout: Option<u64>) {
     let timeout = timeout.unwrap_or(u64::MAX);
     unsafe {
         device

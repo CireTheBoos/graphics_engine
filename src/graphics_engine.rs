@@ -2,14 +2,12 @@ mod device;
 mod presenter;
 mod renderer;
 
-use crate::{instance::Instance, model::Vertex};
+use crate::{instance::Instance, model::Vertex, sync};
 use ash::vk::{Fence, PipelineStageFlags, Semaphore, SurfaceKHR};
 pub use device::Device;
 pub use presenter::Presenter;
 pub use renderer::Renderer;
 use vk_mem::Allocator;
-
-use crate::sync;
 
 const FLIGHTS: usize = 2;
 
@@ -78,7 +76,7 @@ impl GraphicsEngine {
     pub fn frame(&mut self, vertices: &Vec<Vertex>) {
         // WAIT
         let fences = [self.presented];
-        sync::wait_fences(&self.device, &fences, false, None);
+        sync::wait_reset_fences(&self.device, &fences, false, None);
 
         // Update staging vertex buffer
         self.renderer.copy_vertices(vertices, &self.allocator);
@@ -87,7 +85,7 @@ impl GraphicsEngine {
         let signal_semaphores = [self.transfer_done];
         let signal_fence = Fence::null();
         self.renderer
-            .transfer(&self.device, &signal_semaphores, signal_fence);
+            .submit_transfer(&self.device, &signal_semaphores, signal_fence);
 
         // Acquire next image
         let signal_semaphore = self.img_available;
@@ -104,7 +102,7 @@ impl GraphicsEngine {
         let wait_dst_stage_mask = [PipelineStageFlags::COLOR_ATTACHMENT_OUTPUT];
         let signal_semaphores = [self.render_finished];
         let signal_fence = self.presented;
-        self.renderer.draw(
+        self.renderer.submit_draw(
             &self.device,
             &wait_semaphores,
             &wait_dst_stage_mask,
