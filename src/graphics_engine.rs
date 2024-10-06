@@ -1,4 +1,3 @@
-mod commander;
 mod device;
 mod presenter;
 mod renderer;
@@ -6,7 +5,6 @@ mod syncer;
 
 use crate::{instance::Instance, model::Vertex};
 use ash::vk::{Fence, PipelineStageFlags, SurfaceKHR};
-pub use commander::Commander;
 pub use device::Device;
 pub use presenter::Presenter;
 pub use renderer::Renderer;
@@ -21,7 +19,6 @@ const FLIGHTS: usize = 2;
 pub struct GraphicsEngine {
     allocator: Allocator,
     // Support
-    commander: Commander,
     syncer: Syncer,
     // Assistants
     presenter: Presenter,
@@ -52,14 +49,12 @@ impl GraphicsEngine {
         let renderer = Renderer::new(&device, &presenter, &allocator);
 
         // Utils
-        let commander = Commander::new(&device, &renderer);
         let syncer = Syncer::new(&device);
 
         GraphicsEngine {
             allocator,
             surface,
             device,
-            commander,
             syncer,
             presenter,
             renderer,
@@ -73,7 +68,6 @@ impl GraphicsEngine {
 
             // Utils
             self.syncer.destroy(&self.device);
-            self.commander.destroy(&self.device);
 
             // Presentation
             self.presenter.destroy(&self.device);
@@ -105,9 +99,8 @@ impl GraphicsEngine {
         // SUBMIT : Transfer
         let signal_semaphores = [transfer_done];
         let signal_fence = frame_transfer_done;
-        self.renderer.transfer_vertices(
+        self.renderer.transfer(
             &self.device,
-            &self.commander,
             &signal_semaphores,
             signal_fence,
         );
@@ -121,7 +114,7 @@ impl GraphicsEngine {
 
         // RECORD : draw
         self.renderer
-            .record_draw(&self.device, &self.syncer, &self.commander);
+            .record_draw(&self.device, self.syncer.current_flight().idx);
 
         // SUBMIT : draw
         let wait_semaphores = [img_available, transfer_done];
@@ -130,7 +123,6 @@ impl GraphicsEngine {
         let signal_fence = presented;
         self.renderer.draw(
             &self.device,
-            &self.commander,
             &self.syncer,
             &wait_semaphores,
             &wait_dst_stage_mask,
