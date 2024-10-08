@@ -34,7 +34,7 @@ pub struct Renderer {
     // cmds
     graphics_pool: CommandPool,
     transfer_pool: CommandPool,
-    pub draws: Vec<CommandBuffer>,
+    pub draw: CommandBuffer,
     pub transfer_vertices: CommandBuffer,
     // sync
     transfer_done: Semaphore,
@@ -64,7 +64,7 @@ impl Renderer {
         let transfer_pool = cmds::create_transfer_pool(device);
 
         // Command buffers
-        let draws = cmds::allocate_draws(graphics_pool, device);
+        let draw = cmds::allocate_draw(graphics_pool, device);
         let transfer_vertices = cmds::allocate_record_transfer(
             transfer_pool,
             device,
@@ -72,7 +72,7 @@ impl Renderer {
             &vertex_buffer,
         );
 
-        let transfer_done = new_semaphore(&device);
+        let transfer_done = new_semaphore(device);
 
         Renderer {
             graphics_queue,
@@ -87,7 +87,7 @@ impl Renderer {
 
             graphics_pool,
             transfer_pool,
-            draws,
+            draw,
             transfer_vertices,
 
             transfer_done,
@@ -119,47 +119,44 @@ impl Renderer {
         &mut self,
         device: &Device,
         vertices: &Vec<Vertex>,
-        img_available: &[Semaphore],
-        render_finished: &[Semaphore],
-        presented: Fence,
+        image_idx: u32,
+        img_available: Semaphore,
+        render_finished: Semaphore,
+        fence_render_finished: Fence,
     ) {
         // Update staging vertex buffer
         self.copy_vertices(device, vertices);
 
         // SUBMIT : Transfer
         let signal_semaphores = [self.transfer_done];
-        let signal_fence = Fence::null();
-        self.submit_transfer(device, &signal_semaphores, signal_fence);
+        self.submit_transfer(device, &signal_semaphores);
 
         // RECORD : draw
-        self.record_draw(device, 0);
+        self.record_draw(device, image_idx as usize);
 
         // SUBMIT : draw
-        let wait_semaphores = [img_available[0], self.transfer_done];
-        let wait_dst_stage_mask = [PipelineStageFlags::COLOR_ATTACHMENT_OUTPUT];
-        let signal_semaphores = [render_finished[0]];
-        let signal_fence = presented;
+        let wait_semaphores = [img_available, self.transfer_done];
+        let wait_dst_stage_mask = [
+            PipelineStageFlags::VERTEX_INPUT,
+            PipelineStageFlags::COLOR_ATTACHMENT_OUTPUT,
+        ];
+        let signal_semaphores = [render_finished];
         self.submit_draw(
             device,
             &wait_semaphores,
             &wait_dst_stage_mask,
             &signal_semaphores,
-            signal_fence,
+            fence_render_finished,
         );
     }
 
-    fn submit_transfer(
-        &self,
-        device: &Device,
-        signal_semaphores: &[Semaphore],
-        signal_fence: Fence,
-    ) {
+    fn submit_transfer(&self, device: &Device, signal_semaphores: &[Semaphore]) {
         let command_buffers = [self.transfer_vertices];
         let submit_info = SubmitInfo::default()
             .command_buffers(&command_buffers)
             .signal_semaphores(signal_semaphores);
-        unsafe { device.queue_submit(self.transfer_queue, &[submit_info], signal_fence) }
-            .expect("Failed to submit upload_vertices cmd buf.");
+        unsafe { device.queue_submit(self.transfer_queue, &[submit_info], Fence::null()) }
+            .expect("Failed to submit transfer cmd buf.");
     }
 
     fn submit_draw(
@@ -170,11 +167,11 @@ impl Renderer {
         signal_semaphores: &[Semaphore],
         signal_fence: Fence,
     ) {
-        let command_buffers = [self.draws[0]];
+        let command_buffers = [self.draw];
         let submit_info = SubmitInfo::default()
             .wait_semaphores(&wait_semaphores)
-            .signal_semaphores(&signal_semaphores)
             .wait_dst_stage_mask(&wait_dst_stage_mask)
+            .signal_semaphores(&signal_semaphores)
             .command_buffers(&command_buffers);
         unsafe { device.queue_submit(self.graphics_queue, &[submit_info], signal_fence) }
             .expect("Failed to submit draw cmd buf.");

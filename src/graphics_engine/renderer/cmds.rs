@@ -5,7 +5,7 @@ use ash::vk::{
 };
 
 use crate::{
-    graphics_engine::{device::CustomBuffer, Device, FLIGHTS},
+    graphics_engine::{device::CustomBuffer, Device},
     model::{Vertex, MAX_VERTICES},
 };
 
@@ -24,7 +24,7 @@ pub fn create_transfer_pool(device: &Device) -> CommandPool {
     create_pool(
         device,
         device.infos.transfer_idx,
-        CommandPoolCreateFlags::RESET_COMMAND_BUFFER,
+        CommandPoolCreateFlags::empty(),
     )
 }
 
@@ -37,13 +37,13 @@ fn create_pool(device: &Device, queue_family: u32, flags: CommandPoolCreateFlags
 }
 
 // Commands
-pub fn allocate_draws(pool: CommandPool, device: &Device) -> Vec<CommandBuffer> {
+pub fn allocate_draw(pool: CommandPool, device: &Device) -> CommandBuffer {
     let allocate_info = CommandBufferAllocateInfo::default()
         .command_pool(pool)
         .level(CommandBufferLevel::PRIMARY)
-        .command_buffer_count(FLIGHTS as u32);
+        .command_buffer_count(1);
     unsafe { device.allocate_command_buffers(&allocate_info) }
-        .expect("Failed to allocate command buffer.")
+        .expect("Failed to allocate command buffer.")[0]
 }
 
 pub fn allocate_record_transfer(
@@ -76,11 +76,11 @@ pub fn allocate_record_transfer(
 }
 
 impl Renderer {
-    pub fn record_draw(&self, device: &Device, flight_idx: usize) {
-        let framebuffer = &self.frame_buffers[flight_idx];
+    pub fn record_draw(&self, device: &Device, img_idx: usize) {
+        let framebuffer = &self.frame_buffers[img_idx];
         // BEGIN
         let begin_info = CommandBufferBeginInfo::default();
-        unsafe { device.begin_command_buffer(self.draws[flight_idx], &begin_info) }
+        unsafe { device.begin_command_buffer(self.draw, &begin_info) }
             .expect("Failed to start recording command buffer.");
 
         // begin render pass
@@ -97,37 +97,24 @@ impl Renderer {
             )
             .clear_values(&clear_values);
         unsafe {
-            device.cmd_begin_render_pass(
-                self.draws[flight_idx],
-                &render_pass_begin,
-                SubpassContents::INLINE,
-            )
+            device.cmd_begin_render_pass(self.draw, &render_pass_begin, SubpassContents::INLINE)
         };
 
         // bind pipeline
-        unsafe {
-            device.cmd_bind_pipeline(
-                self.draws[flight_idx],
-                PipelineBindPoint::GRAPHICS,
-                *self.pipeline,
-            )
-        };
+        unsafe { device.cmd_bind_pipeline(self.draw, PipelineBindPoint::GRAPHICS, *self.pipeline) };
 
         // bind vertex buffer
         let vertex_buffers = [*self.vertex_buffer];
         let offsets = [0];
-        unsafe {
-            device.cmd_bind_vertex_buffers(self.draws[flight_idx], 0, &vertex_buffers, &offsets)
-        };
+        unsafe { device.cmd_bind_vertex_buffers(self.draw, 0, &vertex_buffers, &offsets) };
 
         // draw
-        unsafe { device.cmd_draw(self.draws[flight_idx], 3, 1, 0, 0) };
+        unsafe { device.cmd_draw(self.draw, 3, 1, 0, 0) };
 
         // end render pass
-        unsafe { device.cmd_end_render_pass(self.draws[flight_idx]) };
+        unsafe { device.cmd_end_render_pass(self.draw) };
 
         // END
-        unsafe { device.end_command_buffer(self.draws[flight_idx]) }
-            .expect("Failed to record command buffer.");
+        unsafe { device.end_command_buffer(self.draw) }.expect("Failed to record command buffer.");
     }
 }

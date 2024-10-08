@@ -31,18 +31,13 @@ impl Presenter {
         &self.swapchain.images
     }
 
-    pub fn acquire_next_image(
-        &self,
-        device: &Device,
-        signal_semaphore: Semaphore,
-        signal_fence: Fence,
-    ) -> u32 {
+    pub fn acquire_next_image(&self, device: &Device, signal_semaphore: Semaphore) -> u32 {
         let (idx, _) = unsafe {
             device.swapchain_khr().acquire_next_image(
                 *self.swapchain,
                 u64::MAX,
                 signal_semaphore,
-                signal_fence,
+                Fence::null(),
             )
         }
         .expect("Failed to acquire next swapchain image.");

@@ -3,7 +3,7 @@ mod presenter;
 mod renderer;
 
 use crate::{
-    boilerplate::{new_fence, new_semaphore, wait_reset_fences},
+    boilerplate::{new_fence, new_semaphore, wait_reset_fence},
     instance::Instance,
     model::Vertex,
 };
@@ -11,8 +11,6 @@ use ash::vk::{Fence, Semaphore, SurfaceKHR};
 pub use device::Device;
 pub use presenter::Presenter;
 pub use renderer::Renderer;
-
-const FLIGHTS: usize = 2;
 
 // Given a surface :
 // - Renders imgs from vertices
@@ -27,7 +25,7 @@ pub struct GraphicsEngine {
     // Sync
     img_available: Semaphore,
     render_finished: Semaphore,
-    presented: Fence,
+    fence_render_finished: Fence,
 }
 
 impl GraphicsEngine {
@@ -42,7 +40,7 @@ impl GraphicsEngine {
         // Sync
         let img_available = new_semaphore(&device);
         let render_finished = new_semaphore(&device);
-        let presented = new_fence(&device, true);
+        let fence_render_finished = new_fence(&device, true);
 
         GraphicsEngine {
             surface,
@@ -51,7 +49,7 @@ impl GraphicsEngine {
             renderer,
             img_available,
             render_finished,
-            presented,
+            fence_render_finished,
         }
     }
 
@@ -63,7 +61,7 @@ impl GraphicsEngine {
             // destroy syncs
             self.device.destroy_semaphore(self.img_available, None);
             self.device.destroy_semaphore(self.render_finished, None);
-            self.device.destroy_fence(self.presented, None);
+            self.device.destroy_fence(self.fence_render_finished, None);
             // destroy missions
             self.presenter.destroy(&self.device);
             self.renderer.destroy(&self.device, self.device.allocator());
@@ -74,26 +72,22 @@ impl GraphicsEngine {
 
     pub fn frame(&mut self, vertices: &Vec<Vertex>) {
         // WAIT
-        let fences = [self.presented];
-        wait_reset_fences(&self.device, &fences, false, None);
+        wait_reset_fence(&self.device, self.fence_render_finished, None);
 
         // Acquire next image
         let signal_semaphore = self.img_available;
-        let signal_fence = Fence::null();
-        let image_idx =
-            self.presenter
-                .acquire_next_image(&self.device, signal_semaphore, signal_fence);
+        let image_idx = self
+            .presenter
+            .acquire_next_image(&self.device, signal_semaphore);
 
         // submit rendering
-        let wait_semaphores = [self.img_available];
-        let signal_semaphores = [self.render_finished];
-        let signal_fence = self.presented;
         self.renderer.submit_render(
             &self.device,
             vertices,
-            &wait_semaphores,
-            &signal_semaphores,
-            signal_fence,
+            image_idx,
+            self.img_available,
+            self.render_finished,
+            self.fence_render_finished,
         );
 
         //submit present
