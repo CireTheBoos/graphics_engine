@@ -4,6 +4,8 @@ use crate::graphics_engine::Device;
 use ash::vk::{Fence, Image, PresentInfoKHR, Queue, Semaphore, SurfaceKHR};
 use swapchain::Swapchain;
 
+// Handles presentation :
+// - Hold Swapchain
 pub struct Presenter {
     swapchain: Swapchain,
     present_queue: Queue,
@@ -31,22 +33,19 @@ impl Presenter {
         &self.swapchain.images
     }
 
-    pub fn acquire_next_image(&self, device: &Device, signal_semaphore: Semaphore) -> u32 {
-        let (idx, _) = unsafe {
-            device.swapchain_khr().acquire_next_image(
-                *self.swapchain,
-                u64::MAX,
-                signal_semaphore,
-                Fence::null(),
-            )
+    pub fn acquire_next_image(&self, device: &Device, image_available: Semaphore) -> (u32, bool) {
+        unsafe {
+            device
+                .swapchain_khr()
+                .acquire_next_image(*self.swapchain, u64::MAX, image_available, Fence::null())
+                .expect("Failed to acquire next swapchain image.")
         }
-        .expect("Failed to acquire next swapchain image.");
-        idx
     }
 
-    pub fn present(&self, device: &Device, image_idx: u32, wait_semaphores: &[Semaphore]) {
+    pub fn present(&self, device: &Device, image_idx: u32, rendering_done: Semaphore) {
         let swapchains = [*self.swapchain];
         let indices = [image_idx];
+        let wait_semaphores = [rendering_done];
         let present_info = PresentInfoKHR::default()
             .wait_semaphores(&wait_semaphores)
             .swapchains(&swapchains)

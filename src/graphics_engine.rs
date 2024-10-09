@@ -13,7 +13,7 @@ pub use presenter::Presenter;
 pub use renderer::Renderer;
 
 // Given a surface :
-// - Renders imgs from vertices
+// - Renders to imgs from vertices
 // - Presents them
 pub struct GraphicsEngine {
     // Essentials
@@ -22,10 +22,10 @@ pub struct GraphicsEngine {
     // Missions
     presenter: Presenter,
     renderer: Renderer,
-    // Sync
-    img_available: Semaphore,
-    render_finished: Semaphore,
-    fence_render_finished: Fence,
+    // Syncs
+    image_available: Semaphore,
+    rendering_done: Semaphore,
+    fence_rendering_done: Fence,
 }
 
 impl GraphicsEngine {
@@ -38,18 +38,18 @@ impl GraphicsEngine {
         let renderer = Renderer::new(&device, &presenter);
 
         // Sync
-        let img_available = new_semaphore(&device);
-        let render_finished = new_semaphore(&device);
-        let fence_render_finished = new_fence(&device, true);
+        let image_available = new_semaphore(&device);
+        let rendering_done = new_semaphore(&device);
+        let fence_rendering_done = new_fence(&device, true);
 
         GraphicsEngine {
             surface,
             device,
             presenter,
             renderer,
-            img_available,
-            render_finished,
-            fence_render_finished,
+            image_available,
+            rendering_done,
+            fence_rendering_done,
         }
     }
 
@@ -59,9 +59,9 @@ impl GraphicsEngine {
             // wait unfinished work
             self.device.device_wait_idle().unwrap();
             // destroy syncs
-            self.device.destroy_semaphore(self.img_available, None);
-            self.device.destroy_semaphore(self.render_finished, None);
-            self.device.destroy_fence(self.fence_render_finished, None);
+            self.device.destroy_semaphore(self.image_available, None);
+            self.device.destroy_semaphore(self.rendering_done, None);
+            self.device.destroy_fence(self.fence_rendering_done, None);
             // destroy missions
             self.presenter.destroy(&self.device);
             self.renderer.destroy(&self.device, self.device.allocator());
@@ -71,28 +71,26 @@ impl GraphicsEngine {
     }
 
     pub fn frame(&mut self, vertices: &Vec<Vertex>) {
-        // WAIT
-        wait_reset_fence(&self.device, self.fence_render_finished, None);
+        // Wait last rendering
+        wait_reset_fence(&self.device, self.fence_rendering_done, None);
 
         // Acquire next image
-        let signal_semaphore = self.img_available;
-        let image_idx = self
+        let (image_idx, _) = self
             .presenter
-            .acquire_next_image(&self.device, signal_semaphore);
+            .acquire_next_image(&self.device, self.image_available);
 
-        // submit rendering
+        // Render to it
         self.renderer.submit_render(
             &self.device,
             vertices,
             image_idx,
-            self.img_available,
-            self.render_finished,
-            self.fence_render_finished,
+            self.image_available,
+            self.rendering_done,
+            self.fence_rendering_done,
         );
 
-        //submit present
-        let wait_semaphores = [self.render_finished];
+        // Present it
         self.presenter
-            .present(&self.device, image_idx, &wait_semaphores);
+            .present(&self.device, image_idx, self.rendering_done);
     }
 }

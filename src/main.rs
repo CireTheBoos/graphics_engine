@@ -29,7 +29,7 @@ struct App {
     instance: Instance,
     model: Model,
     window: Option<Window>,
-    renderer: Option<GraphicsEngine>,
+    graphics_engine: Option<GraphicsEngine>,
 }
 
 impl App {
@@ -44,7 +44,7 @@ impl App {
             instance: Instance::new(raw_display_handle),
             model: Model::new(),
             window: None,
-            renderer: None,
+            graphics_engine: None,
         }
     }
 }
@@ -56,9 +56,9 @@ impl ApplicationHandler for App {
     fn resumed(&mut self, event_loop: &ActiveEventLoop) {
         let window = create_window(event_loop);
         let surface = create_surface(&self.instance, &window);
-        let renderer = GraphicsEngine::new(&self.instance, surface);
+        let graphics_engine = GraphicsEngine::new(&self.instance, surface);
         self.window = Some(window);
-        self.renderer = Some(renderer);
+        self.graphics_engine = Some(graphics_engine);
     }
 
     // Only handles "Redraw" and "Close" requests
@@ -68,14 +68,20 @@ impl ApplicationHandler for App {
         }
         match event {
             WindowEvent::CloseRequested => {
-                self.renderer.as_mut().unwrap().destroy(&self.instance);
-                self.renderer = None;
+                self.graphics_engine
+                    .as_mut()
+                    .unwrap()
+                    .destroy(&self.instance);
+                self.graphics_engine = None;
                 self.window = None;
                 event_loop.exit();
             }
             WindowEvent::RedrawRequested => {
                 self.model.step_if_enough_time();
-                self.renderer.as_mut().unwrap().frame(&self.model.vertices);
+                self.graphics_engine
+                    .as_mut()
+                    .unwrap()
+                    .frame(&self.model.vertices);
                 // Request "Redraw" again, making it loop as fast as possible
                 self.window.as_ref().unwrap().request_redraw();
             }

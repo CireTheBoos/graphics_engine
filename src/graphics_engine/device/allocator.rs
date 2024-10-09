@@ -29,5 +29,5 @@ pub fn create_allocator(
     physical_device: PhysicalDevice,
 ) -> Allocator {
     let create_info = AllocatorCreateInfo::new(instance, device, physical_device);
-    unsafe { Allocator::new(create_info) }.expect("Failed to create allocator.")
+    unsafe { Allocator::new(create_info).expect("Failed to create allocator.") }
 }

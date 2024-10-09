@@ -120,11 +120,11 @@ impl Renderer {
         device: &Device,
         vertices: &Vec<Vertex>,
         image_idx: u32,
-        img_available: Semaphore,
-        render_finished: Semaphore,
-        fence_render_finished: Fence,
+        image_available: Semaphore,
+        rendering_done: Semaphore,
+        fence_rendering_done: Fence,
     ) {
-        // Update staging vertex buffer
+        // CPU COPY : staging vertex buffer
         self.copy_vertices(device, vertices);
 
         // SUBMIT : Transfer
@@ -135,18 +135,19 @@ impl Renderer {
         self.record_draw(device, image_idx as usize);
 
         // SUBMIT : draw
-        let wait_semaphores = [img_available, self.transfer_done];
+        let wait_semaphores = [self.transfer_done, image_available];
         let wait_dst_stage_mask = [
             PipelineStageFlags::VERTEX_INPUT,
             PipelineStageFlags::COLOR_ATTACHMENT_OUTPUT,
         ];
-        let signal_semaphores = [render_finished];
+        let signal_semaphores = [rendering_done];
+        let signal_fence = fence_rendering_done;
         self.submit_draw(
             device,
             &wait_semaphores,
             &wait_dst_stage_mask,
             &signal_semaphores,
-            fence_render_finished,
+            signal_fence,
         );
     }
 

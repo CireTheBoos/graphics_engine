@@ -17,11 +17,11 @@ const SWAPCHAIN_KHR_EXTENSION: *const c_char = c"VK_KHR_swapchain".as_ptr();
 // - Hold a VMA instance
 pub struct Device {
     device: ash::Device,
+    pub infos: PhysicalDeviceInfos,
     // Option bc allocator must drop before device destruction
     allocator: Option<vk_mem::Allocator>,
     // swapchainKHR extension fns
     swapchain_khr_device: ash::khr::swapchain::Device,
-    pub infos: PhysicalDeviceInfos,
 }
 
 // Deref : ash::Device
@@ -55,9 +55,9 @@ impl Device {
         let swapchain_khr_device = ash::khr::swapchain::Device::new(instance, &device);
         Device {
             device,
+            infos,
             allocator,
             swapchain_khr_device,
-            infos,
         }
     }
 
