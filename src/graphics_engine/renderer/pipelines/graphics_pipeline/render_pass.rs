@@ -6,7 +6,7 @@ use ash::vk::{
     SubpassDependency, SubpassDescription, SUBPASS_EXTERNAL,
 };
 
-use super::Device;
+use crate::graphics_engine::Device;
 
 pub struct RenderPass {
     pub render_pass: ash::vk::RenderPass,

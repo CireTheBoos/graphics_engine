@@ -1,7 +1,7 @@
 use ash::vk::{
     ClearValue, CommandBuffer, CommandBufferAllocateInfo, CommandBufferBeginInfo,
-    CommandBufferLevel, CommandPool, Offset2D, PipelineBindPoint, Rect2D, RenderPassBeginInfo,
-    SubpassContents,
+    CommandBufferLevel, CommandPool, Framebuffer, Offset2D, PipelineBindPoint, Rect2D,
+    RenderPassBeginInfo, SubpassContents,
 };
 
 use crate::graphics_engine::{Device, Renderer};
@@ -17,7 +17,7 @@ pub fn allocate_draw(device: &Device, pool: CommandPool) -> CommandBuffer {
 
 impl Renderer {
     pub fn record_draw(&self, device: &Device, img_idx: usize) {
-        let framebuffer = &self.frame_buffers[img_idx];
+        let framebuffer: &Framebuffer = &self.framebuffers[img_idx];
         // BEGIN
         let begin_info = CommandBufferBeginInfo::default();
         unsafe { device.begin_command_buffer(self.draw, &begin_info) }

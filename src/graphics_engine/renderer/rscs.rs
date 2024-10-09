@@ -1,69 +1,10 @@
-use ash::vk::{
-    BufferCreateInfo, BufferUsageFlags, ComponentMapping, Extent2D, Framebuffer,
-    FramebufferCreateInfo, Image, ImageAspectFlags, ImageSubresourceRange, ImageView,
-    ImageViewCreateInfo, ImageViewType, MemoryPropertyFlags, SharingMode,
-};
+use ash::vk::{BufferCreateInfo, BufferUsageFlags, MemoryPropertyFlags, SharingMode};
 use vk_mem::{Alloc, AllocationCreateInfo, Allocator};
 
 use crate::{
     graphics_engine::{device::CustomBuffer, Device},
     model::{Vertex, MAX_VERTICES},
 };
-
-use super::RenderPass;
-
-pub fn create_image_views(device: &Device, images: &Vec<Image>) -> Vec<ImageView> {
-    images
-        .iter()
-        .map(|image| {
-            // identity
-            let components = ComponentMapping::default();
-
-            let subresource_range = ImageSubresourceRange::default()
-                .aspect_mask(ImageAspectFlags::COLOR)
-                .base_mip_level(0)
-                .level_count(1)
-                .base_array_layer(0)
-                .layer_count(1);
-
-            let create_info = ImageViewCreateInfo::default()
-                // view restrictions
-                .image(*image)
-                .view_type(ImageViewType::TYPE_2D)
-                .subresource_range(subresource_range)
-                // data interpretation
-                .format(device.infos.surface_format.format)
-                .components(components);
-
-            unsafe { device.create_image_view(&create_info, None) }
-                .expect("Failed to create image view.")
-        })
-        .collect()
-}
-
-pub fn create_frame_buffers(
-    image_views: &Vec<ImageView>,
-    render_pass: &RenderPass,
-    extent: &Extent2D,
-    device: &Device,
-) -> Vec<Framebuffer> {
-    image_views
-        .iter()
-        .map(|view| {
-            let attachments = [*view];
-
-            let create_info = FramebufferCreateInfo::default()
-                .render_pass(render_pass.render_pass)
-                .layers(1)
-                .height(extent.height)
-                .width(extent.width)
-                .attachments(&attachments);
-
-            unsafe { device.create_framebuffer(&create_info, None) }
-                .expect("Failed to create framebuffer.")
-        })
-        .collect()
-}
 
 pub fn allocate_vertex_buffer(allocator: &Allocator, device: &Device) -> CustomBuffer {
     let queue_family_indices = [device.infos.graphics_idx, device.infos.transfer_idx];

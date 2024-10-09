@@ -1,8 +1,13 @@
+mod framebuffer;
+mod render_pass;
+
 use std::ops::Deref;
 
-use crate::model::Vertex;
+use crate::{
+    graphics_engine::{renderer::shaders::ShaderManager, Device},
+    model::Vertex,
+};
 
-use super::render_pass::RenderPass;
 use ash::vk::{
     ColorComponentFlags, CullModeFlags, FrontFace, GraphicsPipelineCreateInfo, Offset2D,
     PipelineCache, PipelineColorBlendAttachmentState, PipelineColorBlendStateCreateInfo,
@@ -12,9 +17,8 @@ use ash::vk::{
     PipelineViewportStateCreateInfo, PolygonMode, PrimitiveTopology, Rect2D, SampleCountFlags,
     ShaderStageFlags, Viewport,
 };
-
-use super::shaders::ShaderManager;
-use super::Device;
+pub use framebuffer::GraphicsFramebuffer;
+pub use render_pass::RenderPass;
 
 pub struct Pipeline {
     pub layout: PipelineLayout,
