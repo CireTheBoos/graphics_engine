@@ -21,29 +21,32 @@ use crate::{
 use super::device::CustomBuffer;
 
 pub struct Renderer {
-    // queues
+    // Queues
     transfer_queue: Queue,
     graphics_queue: Queue,
-    // rscs
+    // Rsrcs
     vertex_buffer: CustomBuffer,
     staging_vertex_buffer: CustomBuffer,
     image_views: Vec<ImageView>,
     frame_buffers: Vec<Framebuffer>,
     render_pass: RenderPass,
     pipeline: Pipeline,
-    // cmds
+    // Cmds
     graphics_pool: CommandPool,
     transfer_pool: CommandPool,
-    pub draw: CommandBuffer,
-    pub transfer_vertices: CommandBuffer,
-    // sync
+    draw: CommandBuffer,
+    transfer: CommandBuffer,
+    // Syncs
     transfer_done: Semaphore,
 }
 
 impl Renderer {
     pub fn new(device: &Device, presenter: &Presenter) -> Renderer {
+        // Queues
         let graphics_queue = unsafe { device.get_device_queue(device.infos.graphics_idx, 0) };
         let transfer_queue = unsafe { device.get_device_queue(device.infos.transfer_idx, 0) };
+
+        // Rscrs
         let image_views = rscs::create_image_views(&device, presenter.swapchain_images());
         let render_pass = RenderPass::new(&device);
         let pipeline = Pipeline::new(&device, &render_pass);
@@ -64,10 +67,10 @@ impl Renderer {
         let transfer_pool = cmds::create_transfer_pool(device);
 
         // Command buffers
-        let draw = cmds::allocate_draw(graphics_pool, device);
-        let transfer_vertices = cmds::allocate_record_transfer(
-            transfer_pool,
+        let draw = cmds::allocate_draw(device, graphics_pool);
+        let transfer = cmds::allocate_record_transfer(
             device,
+            transfer_pool,
             &staging_vertex_buffer,
             &vertex_buffer,
         );
@@ -88,7 +91,7 @@ impl Renderer {
             graphics_pool,
             transfer_pool,
             draw,
-            transfer_vertices,
+            transfer,
 
             transfer_done,
         }
@@ -124,10 +127,10 @@ impl Renderer {
         rendering_done: Semaphore,
         fence_rendering_done: Fence,
     ) {
-        // CPU COPY : staging vertex buffer
+        // CPU COPY : From CPU to staging vertex buffer
         self.copy_vertices(device, vertices);
 
-        // SUBMIT : Transfer
+        // SUBMIT : transfer
         let signal_semaphores = [self.transfer_done];
         self.submit_transfer(device, &signal_semaphores);
 
@@ -151,8 +154,24 @@ impl Renderer {
         );
     }
 
+    fn copy_vertices(&mut self, device: &Device, vertices: &Vec<Vertex>) {
+        unsafe {
+            device
+                .allocator()
+                .map_memory(&mut self.staging_vertex_buffer.allocation)
+                .expect("Failed to map memory.")
+                .copy_from(
+                    vertices.as_ptr() as *const u8,
+                    Vertex::size_of() * vertices.len(),
+                );
+            device
+                .allocator()
+                .unmap_memory(&mut self.staging_vertex_buffer.allocation);
+        }
+    }
+
     fn submit_transfer(&self, device: &Device, signal_semaphores: &[Semaphore]) {
-        let command_buffers = [self.transfer_vertices];
+        let command_buffers = [self.transfer];
         let submit_info = SubmitInfo::default()
             .command_buffers(&command_buffers)
             .signal_semaphores(signal_semaphores);
@@ -176,21 +195,5 @@ impl Renderer {
             .command_buffers(&command_buffers);
         unsafe { device.queue_submit(self.graphics_queue, &[submit_info], signal_fence) }
             .expect("Failed to submit draw cmd buf.");
-    }
-
-    fn copy_vertices(&mut self, device: &Device, vertices: &Vec<Vertex>) {
-        unsafe {
-            let staging_vertices = device
-                .allocator()
-                .map_memory(&mut self.staging_vertex_buffer.allocation)
-                .expect("Failed to map memory.");
-            staging_vertices.copy_from(
-                vertices.as_ptr() as *const u8,
-                Vertex::size_of() * vertices.len(),
-            );
-            device
-                .allocator()
-                .unmap_memory(&mut self.staging_vertex_buffer.allocation);
-        }
     }
 }
