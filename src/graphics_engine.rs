@@ -35,7 +35,7 @@ impl GraphicsEngine {
 
         // Missions
         let presenter = Presenter::new(&device, &surface);
-        let renderer = Renderer::new(&device, &presenter);
+        let renderer = Renderer::new(&device, presenter.swapchain_images());
 
         // Sync
         let image_available = new_semaphore(&device);

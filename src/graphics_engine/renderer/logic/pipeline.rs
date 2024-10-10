@@ -1,6 +1,3 @@
-mod framebuffer;
-mod render_pass;
-
 use std::ops::Deref;
 
 use crate::{
@@ -17,24 +14,22 @@ use ash::vk::{
     PipelineViewportStateCreateInfo, PolygonMode, PrimitiveTopology, Rect2D, SampleCountFlags,
     ShaderStageFlags, Viewport,
 };
-pub use framebuffer::GraphicsFramebuffer;
-pub use render_pass::RenderPass;
 
 pub struct Pipeline {
+    pipeline: ash::vk::Pipeline,
     pub layout: PipelineLayout,
-    graphics_pipeline: ash::vk::Pipeline,
 }
 
 // Deref to ash::vk::Pipeline
 impl Deref for Pipeline {
     type Target = ash::vk::Pipeline;
     fn deref(&self) -> &Self::Target {
-        &self.graphics_pipeline
+        &self.pipeline
     }
 }
 
 impl Pipeline {
-    pub fn new(device: &Device, render_pass: &RenderPass) -> Pipeline {
+    pub fn new(device: &Device, render_pass: &ash::vk::RenderPass) -> Pipeline {
         let extent = &device.infos.capabilities.current_extent;
 
         // compiling shaders
@@ -107,8 +102,11 @@ impl Pipeline {
 
         // CREATE : pipeline layout
         let create_info = PipelineLayoutCreateInfo::default();
-        let layout = unsafe { device.create_pipeline_layout(&create_info, None) }
-            .expect("Failed to create pipeline layout.");
+        let layout = unsafe {
+            device
+                .create_pipeline_layout(&create_info, None)
+                .expect("Failed to create pipeline layout.")
+        };
 
         // CREATE : pipeline
         let pipeline_info = GraphicsPipelineCreateInfo::default()
@@ -120,28 +118,27 @@ impl Pipeline {
             .multisample_state(&multisample_state)
             .color_blend_state(&color_blend_state)
             .layout(layout)
-            .render_pass(render_pass.render_pass)
+            .render_pass(*render_pass)
             .subpass(0);
 
         let create_info = [pipeline_info];
 
-        let graphics_pipelines =
-            unsafe { device.create_graphics_pipelines(PipelineCache::null(), &create_info, None) }
-                .expect("Failed to create graphics pipeline.");
+        let pipeline = unsafe {
+            device
+                .create_graphics_pipelines(PipelineCache::null(), &create_info, None)
+                .expect("Failed to create graphics pipeline.")[0]
+        };
 
         // Cleanup and return
         unsafe { device.destroy_shader_module(vertex, None) };
         unsafe { device.destroy_shader_module(fragment, None) };
-        Pipeline {
-            layout,
-            graphics_pipeline: graphics_pipelines[0],
-        }
+        Pipeline { pipeline, layout }
     }
 
     pub fn destroy(&self, device: &Device) {
         unsafe {
             device.destroy_pipeline_layout(self.layout, None);
-            device.destroy_pipeline(self.graphics_pipeline, None);
+            device.destroy_pipeline(self.pipeline, None);
         }
     }
 }

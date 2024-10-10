@@ -1,52 +1,52 @@
 use std::ops::Deref;
 
 use ash::vk::{
-    ComponentMapping, Extent2D, Framebuffer, FramebufferCreateInfo, Image, ImageAspectFlags,
+    ComponentMapping, Extent2D, FramebufferCreateInfo, Image, ImageAspectFlags,
     ImageSubresourceRange, ImageView, ImageViewCreateInfo, ImageViewType, RenderPass,
 };
 
 use crate::graphics_engine::Device;
 
-pub struct GraphicsFramebuffer {
-    framebuffer: Framebuffer,
+pub struct Framebuffer {
+    framebuffer: ash::vk::Framebuffer,
     swapchain_image_view: ImageView,
 }
 
 // Deref : ash::vk::Framebuffer
-impl Deref for GraphicsFramebuffer {
-    type Target = Framebuffer;
+impl Deref for Framebuffer {
+    type Target = ash::vk::Framebuffer;
     fn deref(&self) -> &Self::Target {
         &self.framebuffer
     }
 }
 
-impl GraphicsFramebuffer {
-    pub fn new(
-        device: &Device,
-        render_pass: &RenderPass,
-        images: &Vec<Image>,
-    ) -> Vec<GraphicsFramebuffer> {
-        images
-            .iter()
-            .map(|image| {
-                let swapchain_image_view = create_swapchain_image_view(device, image);
-                let extent = device.infos.capabilities.current_extent;
-                let framebuffer =
-                    create_framebuffer(device, render_pass, &swapchain_image_view, extent);
-                GraphicsFramebuffer {
-                    framebuffer,
-                    swapchain_image_view,
-                }
-            })
-            .collect()
-    }
-
+impl Framebuffer {
     pub fn destroy(&mut self, device: &Device) {
         unsafe {
             device.destroy_framebuffer(self.framebuffer, None);
             device.destroy_image_view(self.swapchain_image_view, None);
         }
     }
+}
+
+pub fn create_framebuffers(
+    device: &Device,
+    render_pass: &RenderPass,
+    swapchain_images: &Vec<Image>,
+) -> Vec<Framebuffer> {
+    swapchain_images
+        .iter()
+        .map(|swapchain_image| {
+            let swapchain_image_view = create_swapchain_image_view(device, swapchain_image);
+            let extent = device.infos.capabilities.current_extent;
+            let framebuffer =
+                create_framebuffer(device, render_pass, &swapchain_image_view, extent);
+            Framebuffer {
+                framebuffer,
+                swapchain_image_view,
+            }
+        })
+        .collect()
 }
 
 fn create_swapchain_image_view(device: &Device, image: &Image) -> ImageView {
@@ -81,7 +81,7 @@ fn create_framebuffer(
     render_pass: &RenderPass,
     image_view: &ImageView,
     extent: Extent2D,
-) -> Framebuffer {
+) -> ash::vk::Framebuffer {
     let attachments = [*image_view];
 
     let create_info = FramebufferCreateInfo::default()

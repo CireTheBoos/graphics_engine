@@ -1,19 +1,15 @@
 mod cmds;
-mod pipelines;
+mod logic;
 mod rscs;
 mod shaders;
 
 use ash::vk::{
-    CommandBuffer, CommandPool, Fence, PipelineStageFlags, Queue, Semaphore, SubmitInfo,
+    CommandBuffer, CommandPool, Fence, Image, PipelineStageFlags, Queue, Semaphore, SubmitInfo,
 };
-use pipelines::{GraphicsFramebuffer, Pipeline, RenderPass};
+use logic::{create_framebuffers, Framebuffer, Pipeline, RenderPass};
 use vk_mem::Allocator;
 
-use crate::{
-    boilerplate::new_semaphore,
-    graphics_engine::{Device, Presenter},
-    model::Vertex,
-};
+use crate::{boilerplate::new_semaphore, graphics_engine::Device, model::Vertex};
 
 use super::device::CustomBuffer;
 
@@ -21,9 +17,9 @@ pub struct Renderer {
     // Queues
     transfer_queue: Queue,
     graphics_queue: Queue,
-    // Pipeline
+    // Logic
     render_pass: RenderPass,
-    framebuffers: Vec<GraphicsFramebuffer>,
+    framebuffers: Vec<Framebuffer>,
     pipeline: Pipeline,
     // Rscs
     vertex_buffer: CustomBuffer,
@@ -38,15 +34,14 @@ pub struct Renderer {
 }
 
 impl Renderer {
-    pub fn new(device: &Device, presenter: &Presenter) -> Renderer {
+    pub fn new(device: &Device, swapchain_images: &Vec<Image>) -> Renderer {
         // Queues
         let graphics_queue = unsafe { device.get_device_queue(device.infos.graphics_idx, 0) };
         let transfer_queue = unsafe { device.get_device_queue(device.infos.transfer_idx, 0) };
 
-        // Pipeline
+        // Logic
         let render_pass = RenderPass::new(device);
-        let framebuffers =
-            GraphicsFramebuffer::new(device, &render_pass, presenter.swapchain_images());
+        let framebuffers = create_framebuffers(device, &render_pass, swapchain_images);
         let pipeline = Pipeline::new(device, &render_pass);
 
         // Rscs
@@ -94,7 +89,7 @@ impl Renderer {
             self.vertex_buffer.destroy(allocator);
             self.staging_vertex_buffer.destroy(allocator);
 
-            // Pipeline
+            // Logic
             for framebuffer in &mut self.framebuffers {
                 framebuffer.destroy(device);
             }
@@ -144,14 +139,17 @@ impl Renderer {
 
     fn copy_vertices(&mut self, device: &Device, vertices: &Vec<Vertex>) {
         unsafe {
-            device
+            // map
+            let mapped_memory = device
                 .allocator()
                 .map_memory(&mut self.staging_vertex_buffer.allocation)
-                .expect("Failed to map memory.")
-                .copy_from(
-                    vertices.as_ptr() as *const u8,
-                    Vertex::size_of() * vertices.len(),
-                );
+                .expect("Failed to map memory.");
+            // copy
+            mapped_memory.copy_from(
+                vertices.as_ptr() as *const u8,
+                Vertex::size_of() * vertices.len(),
+            );
+            // unmap
             device
                 .allocator()
                 .unmap_memory(&mut self.staging_vertex_buffer.allocation);
@@ -163,8 +161,11 @@ impl Renderer {
         let submit_info = SubmitInfo::default()
             .command_buffers(&command_buffers)
             .signal_semaphores(signal_semaphores);
-        unsafe { device.queue_submit(self.transfer_queue, &[submit_info], Fence::null()) }
-            .expect("Failed to submit transfer.");
+        unsafe {
+            device
+                .queue_submit(self.transfer_queue, &[submit_info], Fence::null())
+                .expect("Failed to submit transfer.");
+        }
     }
 
     fn submit_draw(
@@ -181,7 +182,10 @@ impl Renderer {
             .wait_dst_stage_mask(&wait_dst_stage_mask)
             .signal_semaphores(&signal_semaphores)
             .command_buffers(&command_buffers);
-        unsafe { device.queue_submit(self.graphics_queue, &[submit_info], signal_fence) }
-            .expect("Failed to submit draw.");
+        unsafe {
+            device
+                .queue_submit(self.graphics_queue, &[submit_info], signal_fence)
+                .expect("Failed to submit draw.");
+        }
     }
 }
