@@ -22,8 +22,10 @@ pub struct Renderer {
     framebuffers: Vec<Framebuffer>,
     pipeline: Pipeline,
     // Rscs
-    vertex_buffer: CustomBuffer,
-    staging_vertex_buffer: CustomBuffer,
+    vertices: CustomBuffer,
+    staging_vertices: CustomBuffer,
+    indices: CustomBuffer,
+    staging_indices: CustomBuffer,
     // Cmds
     graphics_pool: CommandPool,
     transfer_pool: CommandPool,
@@ -45,9 +47,11 @@ impl Renderer {
         let pipeline = Pipeline::new(device, &render_pass);
 
         // Rscs
-        let vertex_buffer = rscs::allocate_vertex_buffer(device.allocator(), device);
-        let staging_vertex_buffer =
-            rscs::allocate_staging_vertex_buffer(device.allocator(), device);
+        let vertices = rscs::allocate_vertices(device);
+        let staging_vertices = rscs::allocate_staging_vertices(device);
+        let indices = rscs::allocate_indices(device);
+        let staging_indices = rscs::allocate_staging_indices(device);
+        // TODO : allocate index buffers
 
         // Cmds
         let graphics_pool = cmds::create_graphics_pool(device);
@@ -56,8 +60,10 @@ impl Renderer {
         let transfer = cmds::allocate_record_transfer(
             device,
             transfer_pool,
-            &staging_vertex_buffer,
-            &vertex_buffer,
+            &staging_vertices,
+            &vertices,
+            &staging_indices,
+            &indices,
         );
 
         // Syncs
@@ -69,8 +75,10 @@ impl Renderer {
             render_pass,
             framebuffers,
             pipeline,
-            vertex_buffer,
-            staging_vertex_buffer,
+            vertices,
+            staging_vertices,
+            indices,
+            staging_indices,
             graphics_pool,
             transfer_pool,
             draw,
@@ -86,8 +94,10 @@ impl Renderer {
             device.destroy_command_pool(self.transfer_pool, None);
 
             // Rscs
-            self.vertex_buffer.destroy(allocator);
-            self.staging_vertex_buffer.destroy(allocator);
+            self.vertices.destroy(allocator);
+            self.staging_vertices.destroy(allocator);
+            self.indices.destroy(allocator);
+            self.staging_indices.destroy(allocator);
 
             // Logic
             for framebuffer in &mut self.framebuffers {
@@ -105,20 +115,21 @@ impl Renderer {
         &mut self,
         device: &Device,
         vertices: &Vec<Vertex>,
-        image_idx: u32,
+        indices: &Vec<u32>,
+        swapchain_image_idx: u32,
         image_available: Semaphore,
         rendering_done: Semaphore,
         fence_rendering_done: Fence,
     ) {
         // CPU COPY : From CPU to staging vertex buffer
-        self.copy_vertices(device, vertices);
+        self.copy_vertices(device, vertices, indices);
 
         // SUBMIT : transfer
         let signal_semaphores = [self.transfer_done];
         self.submit_transfer(device, &signal_semaphores);
 
         // RECORD : draw
-        self.record_draw(device, image_idx as usize);
+        self.record_draw(device, swapchain_image_idx as usize);
 
         // SUBMIT : draw
         let wait_semaphores = [self.transfer_done, image_available];
@@ -137,22 +148,33 @@ impl Renderer {
         );
     }
 
-    fn copy_vertices(&mut self, device: &Device, vertices: &Vec<Vertex>) {
+    fn copy_vertices(&mut self, device: &Device, vertices: &Vec<Vertex>, indices: &Vec<u32>) {
         unsafe {
             // map
-            let mapped_memory = device
+            let mapped_vertices = device
                 .allocator()
-                .map_memory(&mut self.staging_vertex_buffer.allocation)
+                .map_memory(&mut self.staging_vertices.allocation)
+                .expect("Failed to map memory.");
+            let mapped_indices = device
+                .allocator()
+                .map_memory(&mut self.staging_indices.allocation)
                 .expect("Failed to map memory.");
             // copy
-            mapped_memory.copy_from(
+            mapped_vertices.copy_from(
                 vertices.as_ptr() as *const u8,
                 Vertex::size_of() * vertices.len(),
+            );
+            mapped_indices.copy_from(
+                indices.as_ptr() as *const u8,
+                size_of::<u32>() * indices.len(),
             );
             // unmap
             device
                 .allocator()
-                .unmap_memory(&mut self.staging_vertex_buffer.allocation);
+                .unmap_memory(&mut self.staging_vertices.allocation);
+            device
+                .allocator()
+                .unmap_memory(&mut self.staging_indices.allocation);
         }
     }
 

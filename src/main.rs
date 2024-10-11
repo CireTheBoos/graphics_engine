@@ -81,7 +81,7 @@ impl ApplicationHandler for App {
                 self.graphics_engine
                     .as_mut()
                     .unwrap()
-                    .frame(&self.model.vertices);
+                    .frame(&self.model.vertices, &self.model.indices);
                 // Request "Redraw" again, making it loop as fast as possible
                 self.window.as_ref().unwrap().request_redraw();
             }

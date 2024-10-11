@@ -1,45 +1,23 @@
-use ash::vk::{BufferCreateInfo, BufferUsageFlags, MemoryPropertyFlags, SharingMode};
-use vk_mem::{Alloc, AllocationCreateInfo, Allocator};
+mod vertices;
 
-use crate::{
-    graphics_engine::{device::CustomBuffer, Device},
-    model::{Vertex, MAX_VERTICES},
+use crate::graphics_engine::{device::CustomBuffer, Device};
+use ash::vk::BufferCreateInfo;
+use vk_mem::{Alloc, AllocationCreateInfo};
+
+pub use vertices::{
+    allocate_indices, allocate_staging_indices, allocate_staging_vertices, allocate_vertices,
 };
 
-pub fn allocate_vertex_buffer(allocator: &Allocator, device: &Device) -> CustomBuffer {
-    let queue_family_indices = [device.infos.graphics_idx, device.infos.transfer_idx];
-    let buffer_info = BufferCreateInfo::default()
-        .queue_family_indices(&queue_family_indices)
-        .sharing_mode(SharingMode::CONCURRENT)
-        .size(size_of::<Vertex>() as u64 * MAX_VERTICES)
-        .usage(BufferUsageFlags::VERTEX_BUFFER | BufferUsageFlags::TRANSFER_DST);
-
-    let create_info = AllocationCreateInfo {
-        required_flags: MemoryPropertyFlags::DEVICE_LOCAL,
-        ..Default::default()
+fn create_buffer(
+    device: &Device,
+    buffer_info: &BufferCreateInfo,
+    create_info: &AllocationCreateInfo,
+) -> CustomBuffer {
+    let (buffer, allocation) = unsafe {
+        device
+            .allocator()
+            .create_buffer(buffer_info, create_info)
+            .expect("Failed to create vertex buffer.")
     };
-
-    let (buffer, allocation) = unsafe { allocator.create_buffer(&buffer_info, &create_info) }
-        .expect("Failed to create vertex buffer.");
-
-    CustomBuffer { buffer, allocation }
-}
-
-pub fn allocate_staging_vertex_buffer(allocator: &Allocator, device: &Device) -> CustomBuffer {
-    let queue_family_indices = [device.infos.transfer_idx];
-    let buffer_info = BufferCreateInfo::default()
-        .queue_family_indices(&queue_family_indices)
-        .sharing_mode(SharingMode::EXCLUSIVE)
-        .size(size_of::<Vertex>() as u64 * MAX_VERTICES)
-        .usage(BufferUsageFlags::TRANSFER_SRC);
-
-    let create_info = AllocationCreateInfo {
-        required_flags: MemoryPropertyFlags::HOST_VISIBLE | MemoryPropertyFlags::HOST_COHERENT,
-        ..Default::default()
-    };
-
-    let (buffer, allocation) = unsafe { allocator.create_buffer(&buffer_info, &create_info) }
-        .expect("Failed to create vertex buffer.");
-
     CustomBuffer { buffer, allocation }
 }

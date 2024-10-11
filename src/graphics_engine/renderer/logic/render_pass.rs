@@ -2,14 +2,15 @@ use std::ops::Deref;
 
 use ash::vk::{
     AccessFlags, AttachmentDescription, AttachmentLoadOp, AttachmentReference, AttachmentStoreOp,
-    ImageLayout, PipelineBindPoint, PipelineStageFlags, RenderPassCreateInfo, SampleCountFlags,
-    SubpassDependency, SubpassDescription, SUBPASS_EXTERNAL,
+    ClearValue, ImageLayout, PipelineBindPoint, PipelineStageFlags, RenderPassCreateInfo,
+    SampleCountFlags, SubpassDependency, SubpassDescription, SUBPASS_EXTERNAL,
 };
 
 use crate::graphics_engine::Device;
 
 pub struct RenderPass {
-    pub render_pass: ash::vk::RenderPass,
+    render_pass: ash::vk::RenderPass,
+    pub clear_values: [ClearValue; 1],
 }
 
 // Deref : ash::vk::RenderPass
@@ -28,8 +29,6 @@ impl RenderPass {
             .samples(SampleCountFlags::TYPE_1)
             .load_op(AttachmentLoadOp::CLEAR)
             .store_op(AttachmentStoreOp::STORE)
-            .stencil_load_op(AttachmentLoadOp::DONT_CARE)
-            .stencil_store_op(AttachmentStoreOp::DONT_CARE)
             .initial_layout(ImageLayout::UNDEFINED)
             .final_layout(ImageLayout::PRESENT_SRC_KHR);
 
@@ -63,6 +62,13 @@ impl RenderPass {
             .dependencies(&dependencies);
         let render_pass = unsafe { device.create_render_pass(&create_info, None) }
             .expect("Failed to create render pass.");
-        RenderPass { render_pass }
+
+        let mut clear_color = ClearValue::default();
+        clear_color.color.float32 = [0., 0., 0., 1.];
+        let clear_values = [clear_color];
+        RenderPass {
+            render_pass,
+            clear_values,
+        }
     }
 }

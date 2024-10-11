@@ -70,7 +70,7 @@ impl GraphicsEngine {
         }
     }
 
-    pub fn frame(&mut self, vertices: &Vec<Vertex>) {
+    pub fn frame(&mut self, vertices: &Vec<Vertex>, indices: &Vec<u32>) {
         // Wait last rendering
         wait_reset_fence(&self.device, self.fence_rendering_done, None);
 
@@ -83,6 +83,7 @@ impl GraphicsEngine {
         self.renderer.submit_render(
             &self.device,
             vertices,
+            indices,
             image_idx,
             self.image_available,
             self.rendering_done,

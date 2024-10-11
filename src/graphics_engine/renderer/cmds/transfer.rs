@@ -5,17 +5,26 @@ use ash::vk::{
 
 use crate::{
     graphics_engine::Device,
-    model::{Vertex, MAX_VERTICES},
+    model::{Vertex, MAX_INDICES, MAX_VERTICES},
 };
 
 pub fn allocate_record_transfer(
     device: &Device,
     pool: CommandPool,
-    src_buffer: &Buffer,
-    dst_buffer: &Buffer,
+    staging_vertices: &Buffer,
+    vertices: &Buffer,
+    staging_indices: &Buffer,
+    indices: &Buffer,
 ) -> CommandBuffer {
     let transfer = allocate_transfer(device, pool);
-    record_transfer(device, &transfer, src_buffer, dst_buffer);
+    record_transfer(
+        device,
+        &transfer,
+        staging_vertices,
+        vertices,
+        staging_indices,
+        indices,
+    );
     transfer
 }
 
@@ -34,27 +43,35 @@ fn allocate_transfer(device: &Device, pool: CommandPool) -> CommandBuffer {
 fn record_transfer(
     device: &Device,
     transfer: &CommandBuffer,
-    src_buffer: &Buffer,
-    dst_buffer: &Buffer,
+    staging_vertices: &Buffer,
+    vertices: &Buffer,
+    staging_indices: &Buffer,
+    indices: &Buffer,
 ) {
     // Begin
     let begin_info = CommandBufferBeginInfo::default();
     unsafe {
         device
             .begin_command_buffer(*transfer, &begin_info)
-            .expect("Failed to start recording command buffer.");
+            .expect("Failed to begin transfer.");
     }
 
-    // Copy
+    // Copy vertices
     let region = BufferCopy::default() // Offset of 0 for src and dst
         .size(Vertex::size_of() as u64 * MAX_VERTICES);
     let regions = [region];
-    unsafe { device.cmd_copy_buffer(*transfer, *src_buffer, *dst_buffer, &regions) };
+    unsafe { device.cmd_copy_buffer(*transfer, *staging_vertices, *vertices, &regions) };
+
+    // Copy indices
+    let region = BufferCopy::default() // Offset of 0 for src and dst
+        .size(size_of::<u32>() as u64 * MAX_INDICES);
+    let regions = [region];
+    unsafe { device.cmd_copy_buffer(*transfer, *staging_indices, *indices, &regions) };
 
     // End
     unsafe {
         device
             .end_command_buffer(*transfer)
-            .expect("Failed to record upload_vertices.");
+            .expect("Failed to record transfer.");
     }
 }
