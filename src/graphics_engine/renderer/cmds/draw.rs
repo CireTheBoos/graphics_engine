@@ -1,7 +1,7 @@
 use ash::vk::{
-    CommandBuffer, CommandBufferAllocateInfo, CommandBufferBeginInfo, CommandBufferLevel,
-    CommandPool, Framebuffer, IndexType, Offset2D, PipelineBindPoint, Rect2D, RenderPassBeginInfo,
-    SubpassContents,
+    ClearValue, CommandBuffer, CommandBufferAllocateInfo, CommandBufferBeginInfo,
+    CommandBufferLevel, CommandPool, Framebuffer, IndexType, PipelineBindPoint, Rect2D,
+    RenderPassBeginInfo, SubpassContents,
 };
 
 use crate::graphics_engine::{Device, Renderer};
@@ -21,8 +21,6 @@ pub fn allocate_draw(device: &Device, pool: CommandPool) -> CommandBuffer {
 impl Renderer {
     pub fn record_draw(&self, device: &Device, swapchain_image_idx: usize) {
         unsafe {
-            let framebuffer: &Framebuffer = &self.framebuffers[swapchain_image_idx];
-
             // Begin
             let begin_info = CommandBufferBeginInfo::default();
             device
@@ -30,16 +28,7 @@ impl Renderer {
                 .expect("Failed to start recording command buffer.");
 
             // Begin render pass
-            let render_pass_begin = RenderPassBeginInfo::default()
-                .render_pass(*self.render_pass)
-                .framebuffer(*framebuffer)
-                .render_area(
-                    Rect2D::default()
-                        .offset(Offset2D::default())
-                        .extent(device.infos.capabilities.current_extent),
-                )
-                .clear_values(&self.render_pass.clear_values);
-            device.cmd_begin_render_pass(self.draw, &render_pass_begin, SubpassContents::INLINE);
+            self.cmd_begin_render_pass(device, swapchain_image_idx);
 
             // Bind : pipeline
             device.cmd_bind_pipeline(self.draw, PipelineBindPoint::GRAPHICS, *self.pipeline);
@@ -64,4 +53,28 @@ impl Renderer {
                 .expect("Failed to record command buffer.");
         }
     }
+
+    fn cmd_begin_render_pass(&self, device: &Device, swapchain_image_idx: usize) {
+        // Params
+        let framebuffer: &Framebuffer = &self.framebuffers[swapchain_image_idx];
+        let render_area = Rect2D::default().extent(device.infos.capabilities.current_extent);
+        let clear_values = clear_values();
+
+        // Cmd
+        let render_pass_begin = RenderPassBeginInfo::default()
+            .render_pass(*self.render_pass)
+            .framebuffer(*framebuffer)
+            .render_area(render_area)
+            .clear_values(&clear_values);
+        unsafe {
+            device.cmd_begin_render_pass(self.draw, &render_pass_begin, SubpassContents::INLINE)
+        };
+    }
+}
+
+// Clears to black
+fn clear_values() -> Vec<ClearValue> {
+    let mut clear_color = ClearValue::default();
+    clear_color.color.float32 = [0., 0., 0., 1.];
+    vec![clear_color]
 }

@@ -4,9 +4,10 @@ mod rscs;
 mod shaders;
 
 use ash::vk::{
-    CommandBuffer, CommandPool, Fence, Image, PipelineStageFlags, Queue, Semaphore, SubmitInfo,
+    CommandBuffer, CommandPool, Fence, Framebuffer, Image, ImageView, PipelineStageFlags, Queue,
+    Semaphore, SubmitInfo,
 };
-use logic::{create_framebuffers, Framebuffer, Pipeline, RenderPass};
+use logic::{create_framebuffers, Pipeline, RenderPass};
 use vk_mem::Allocator;
 
 use crate::{boilerplate::new_semaphore, graphics_engine::Device, model::Vertex};
@@ -17,15 +18,16 @@ pub struct Renderer {
     // Queues
     transfer_queue: Queue,
     graphics_queue: Queue,
-    // Logic
-    render_pass: RenderPass,
-    framebuffers: Vec<Framebuffer>,
-    pipeline: Pipeline,
     // Rscs
+    swapchain_image_views: Vec<ImageView>,
     vertices: CustomBuffer,
     staging_vertices: CustomBuffer,
     indices: CustomBuffer,
     staging_indices: CustomBuffer,
+    // Logic
+    render_pass: RenderPass,
+    framebuffers: Vec<Framebuffer>,
+    pipeline: Pipeline,
     // Cmds
     graphics_pool: CommandPool,
     transfer_pool: CommandPool,
@@ -41,17 +43,17 @@ impl Renderer {
         let graphics_queue = unsafe { device.get_device_queue(device.infos.graphics_idx, 0) };
         let transfer_queue = unsafe { device.get_device_queue(device.infos.transfer_idx, 0) };
 
-        // Logic
-        let render_pass = RenderPass::new(device);
-        let framebuffers = create_framebuffers(device, &render_pass, swapchain_images);
-        let pipeline = Pipeline::new(device, &render_pass);
-
         // Rscs
+        let swapchain_image_views = rscs::create_swapchain_image_views(device, swapchain_images);
         let vertices = rscs::allocate_vertices(device);
         let staging_vertices = rscs::allocate_staging_vertices(device);
         let indices = rscs::allocate_indices(device);
         let staging_indices = rscs::allocate_staging_indices(device);
-        // TODO : allocate index buffers
+
+        // Logic
+        let render_pass = RenderPass::new(device);
+        let framebuffers = create_framebuffers(device, &render_pass, &swapchain_image_views);
+        let pipeline = Pipeline::new(device, &render_pass);
 
         // Cmds
         let graphics_pool = cmds::create_graphics_pool(device);
@@ -72,13 +74,14 @@ impl Renderer {
         Renderer {
             graphics_queue,
             transfer_queue,
-            render_pass,
-            framebuffers,
-            pipeline,
+            swapchain_image_views,
             vertices,
             staging_vertices,
             indices,
             staging_indices,
+            render_pass,
+            framebuffers,
+            pipeline,
             graphics_pool,
             transfer_pool,
             draw,
@@ -94,6 +97,9 @@ impl Renderer {
             device.destroy_command_pool(self.transfer_pool, None);
 
             // Rscs
+            for image_view in &mut self.swapchain_image_views {
+                device.destroy_image_view(*image_view, None);
+            }
             self.vertices.destroy(allocator);
             self.staging_vertices.destroy(allocator);
             self.indices.destroy(allocator);
@@ -101,7 +107,7 @@ impl Renderer {
 
             // Logic
             for framebuffer in &mut self.framebuffers {
-                framebuffer.destroy(device);
+                device.destroy_framebuffer(*framebuffer, None);
             }
             self.pipeline.destroy(device);
             device.destroy_render_pass(*self.render_pass, None);

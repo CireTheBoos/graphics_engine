@@ -2,15 +2,14 @@ use std::ops::Deref;
 
 use ash::vk::{
     AccessFlags, AttachmentDescription, AttachmentLoadOp, AttachmentReference, AttachmentStoreOp,
-    ClearValue, ImageLayout, PipelineBindPoint, PipelineStageFlags, RenderPassCreateInfo,
-    SampleCountFlags, SubpassDependency, SubpassDescription, SUBPASS_EXTERNAL,
+    ImageLayout, PipelineBindPoint, PipelineStageFlags, RenderPassCreateInfo, SampleCountFlags,
+    SubpassDependency, SubpassDescription, SUBPASS_EXTERNAL,
 };
 
 use crate::graphics_engine::Device;
 
 pub struct RenderPass {
     render_pass: ash::vk::RenderPass,
-    pub clear_values: [ClearValue; 1],
 }
 
 // Deref : ash::vk::RenderPass
@@ -23,7 +22,7 @@ impl Deref for RenderPass {
 
 impl RenderPass {
     pub fn new(device: &Device) -> RenderPass {
-        // SPECIFY : attachments
+        // Attachments
         let final_image = AttachmentDescription::default()
             .format(device.infos.surface_format.format)
             .samples(SampleCountFlags::TYPE_1)
@@ -31,10 +30,9 @@ impl RenderPass {
             .store_op(AttachmentStoreOp::STORE)
             .initial_layout(ImageLayout::UNDEFINED)
             .final_layout(ImageLayout::PRESENT_SRC_KHR);
-
         let attachments = [final_image];
 
-        // SPECIFY : subpasses
+        // Subpasses
         let final_image_ref = AttachmentReference::default()
             .attachment(0)
             .layout(ImageLayout::COLOR_ATTACHMENT_OPTIMAL);
@@ -42,10 +40,9 @@ impl RenderPass {
         let color_rendering = SubpassDescription::default()
             .pipeline_bind_point(PipelineBindPoint::GRAPHICS)
             .color_attachments(&color_attachments);
-
         let subpasses = [color_rendering];
 
-        // SPECIFY : dependencies
+        // Dependencies
         let dependency = SubpassDependency::default()
             .src_subpass(SUBPASS_EXTERNAL)
             .dst_subpass(0)
@@ -55,20 +52,17 @@ impl RenderPass {
             .dst_access_mask(AccessFlags::COLOR_ATTACHMENT_WRITE);
         let dependencies = [dependency];
 
-        // CREATE : render pass
+        // Create Render pass
         let create_info = RenderPassCreateInfo::default()
             .attachments(&attachments)
             .subpasses(&subpasses)
             .dependencies(&dependencies);
-        let render_pass = unsafe { device.create_render_pass(&create_info, None) }
-            .expect("Failed to create render pass.");
+        let render_pass = unsafe {
+            device
+                .create_render_pass(&create_info, None)
+                .expect("Failed to create render pass.")
+        };
 
-        let mut clear_color = ClearValue::default();
-        clear_color.color.float32 = [0., 0., 0., 1.];
-        let clear_values = [clear_color];
-        RenderPass {
-            render_pass,
-            clear_values,
-        }
+        RenderPass { render_pass }
     }
 }
