@@ -159,6 +159,7 @@ impl Renderer {
                 .allocator()
                 .map_memory(&mut self.staging_indices.allocation)
                 .expect("Failed to map memory.");
+
             // copy
             mapped_vertices.copy_from(
                 vertices.as_ptr() as *const u8,
@@ -168,6 +169,7 @@ impl Renderer {
                 indices.as_ptr() as *const u8,
                 size_of::<u32>() * indices.len(),
             );
+
             // unmap
             device
                 .allocator()

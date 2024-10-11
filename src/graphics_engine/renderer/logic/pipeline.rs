@@ -1,7 +1,7 @@
 use std::ops::Deref;
 
 use crate::{
-    graphics_engine::{renderer::shaders::ShaderManager, Device},
+    graphics_engine::{renderer::shaders::Compiler, Device},
     model::Vertex,
 };
 
@@ -33,9 +33,9 @@ impl Pipeline {
         let extent = &device.infos.capabilities.current_extent;
 
         // compiling shaders
-        let shader_manager = ShaderManager::new(device);
-        let vertex = shader_manager.vertex();
-        let fragment = shader_manager.fragment();
+        let shader_compiler = Compiler::new();
+        let vertex = shader_compiler.vertex(device);
+        let fragment = shader_compiler.fragment(device);
 
         // SPECIFY : programmable stages
         let vertex_stage_info = PipelineShaderStageCreateInfo::default()
