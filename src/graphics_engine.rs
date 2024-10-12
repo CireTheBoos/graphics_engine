@@ -5,7 +5,7 @@ mod renderer;
 use crate::{
     boilerplate::{new_fence, new_semaphore, wait_reset_fence},
     instance::Instance,
-    model::Vertex,
+    model::{Camera, Vertex},
 };
 use ash::vk::{Fence, Semaphore, SurfaceKHR};
 pub use device::Device;
@@ -70,7 +70,7 @@ impl GraphicsEngine {
         }
     }
 
-    pub fn frame(&mut self, vertices: &Vec<Vertex>, indices: &Vec<u32>) {
+    pub fn frame(&mut self, vertices: &Vec<Vertex>, indices: &Vec<u32>, camera: &Camera) {
         // Wait last rendering
         wait_reset_fence(&self.device, self.fence_rendering_done, None);
 
@@ -84,7 +84,9 @@ impl GraphicsEngine {
             &self.device,
             vertices,
             indices,
+            camera,
             image_idx,
+            self.device.infos.capabilities.current_extent,
             self.image_available,
             self.rendering_done,
             self.fence_rendering_done,

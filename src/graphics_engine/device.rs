@@ -3,7 +3,7 @@ mod physical_device;
 
 use crate::instance::Instance;
 
-pub use allocator::CustomBuffer;
+pub use allocator::{CustomBuffer, CustomMappedBuffer};
 
 use ash::vk::{self, SurfaceKHR};
 use physical_device::PhysicalDeviceInfos;

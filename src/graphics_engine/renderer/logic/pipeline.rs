@@ -6,8 +6,8 @@ use crate::{
 };
 
 use ash::vk::{
-    ColorComponentFlags, CullModeFlags, FrontFace, GraphicsPipelineCreateInfo, Offset2D,
-    PipelineCache, PipelineColorBlendAttachmentState, PipelineColorBlendStateCreateInfo,
+    ColorComponentFlags, CullModeFlags, DescriptorSetLayout, FrontFace, GraphicsPipelineCreateInfo,
+    Offset2D, PipelineCache, PipelineColorBlendAttachmentState, PipelineColorBlendStateCreateInfo,
     PipelineInputAssemblyStateCreateInfo, PipelineLayout, PipelineLayoutCreateInfo,
     PipelineMultisampleStateCreateInfo, PipelineRasterizationStateCreateInfo,
     PipelineShaderStageCreateInfo, PipelineVertexInputStateCreateInfo,
@@ -15,9 +15,12 @@ use ash::vk::{
     ShaderStageFlags, Viewport,
 };
 
+use super::descriptor_set::create_mvp_layout;
+
 pub struct Pipeline {
     pipeline: ash::vk::Pipeline,
-    pub layout: PipelineLayout,
+    layout: PipelineLayout,
+    mvp_layout: DescriptorSetLayout,
 }
 
 // Deref to ash::vk::Pipeline
@@ -100,8 +103,11 @@ impl Pipeline {
             .logic_op_enable(false)
             .attachments(&attachments);
 
-        // CREATE : pipeline layout
-        let create_info = PipelineLayoutCreateInfo::default();
+        // Layout
+        let mvp_layout = create_mvp_layout(device);
+        // let set_layouts = [mvp_layout];
+
+        let create_info = PipelineLayoutCreateInfo::default();//.set_layouts(&set_layouts);
         let layout = unsafe {
             device
                 .create_pipeline_layout(&create_info, None)
@@ -132,11 +138,16 @@ impl Pipeline {
         // Cleanup and return
         unsafe { device.destroy_shader_module(vertex, None) };
         unsafe { device.destroy_shader_module(fragment, None) };
-        Pipeline { pipeline, layout }
+        Pipeline {
+            pipeline,
+            layout,
+            mvp_layout,
+        }
     }
 
     pub fn destroy(&self, device: &Device) {
         unsafe {
+            device.destroy_descriptor_set_layout(self.mvp_layout, None);
             device.destroy_pipeline_layout(self.layout, None);
             device.destroy_pipeline(self.pipeline, None);
         }

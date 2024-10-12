@@ -1,3 +1,4 @@
+mod descriptor_set;
 mod framebuffer;
 mod pipeline;
 mod render_pass;

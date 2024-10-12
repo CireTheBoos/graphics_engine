@@ -23,6 +23,31 @@ impl CustomBuffer {
     }
 }
 
+pub struct CustomMappedBuffer {
+    pub buffer: CustomBuffer,
+    pub ptr: *mut u8,
+}
+
+impl CustomMappedBuffer {
+    pub fn new(allocator: &Allocator, mut buffer: CustomBuffer) -> CustomMappedBuffer {
+        // Map
+        let ptr = unsafe {
+            allocator
+                .map_memory(&mut buffer.allocation)
+                .expect("Failed to map memory.")
+        };
+        CustomMappedBuffer { buffer, ptr }
+    }
+
+    pub fn destroy(&mut self, allocator: &Allocator) {
+        // Unmap
+        unsafe {
+            allocator.unmap_memory(&mut self.buffer.allocation);
+        }
+        self.buffer.destroy(allocator);
+    }
+}
+
 pub fn create_allocator(
     instance: &Instance,
     device: &ash::Device,

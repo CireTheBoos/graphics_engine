@@ -3,7 +3,7 @@ use std::mem::offset_of;
 use ash::vk::{
     Format, VertexInputAttributeDescription, VertexInputBindingDescription, VertexInputRate,
 };
-use gfx_maths::{Vec2, Vec3};
+use glam::{Vec2, Vec3};
 
 #[repr(C)]
 pub struct Vertex {

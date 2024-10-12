@@ -78,10 +78,11 @@ impl ApplicationHandler for App {
             }
             WindowEvent::RedrawRequested => {
                 self.model.step_if_enough_time();
-                self.graphics_engine
-                    .as_mut()
-                    .unwrap()
-                    .frame(&self.model.vertices, &self.model.indices);
+                self.graphics_engine.as_mut().unwrap().frame(
+                    &self.model.vertices,
+                    &self.model.indices,
+                    &self.model.camera,
+                );
                 // Request "Redraw" again, making it loop as fast as possible
                 self.window.as_ref().unwrap().request_redraw();
             }

@@ -1,6 +1,8 @@
+mod camera;
 mod vertex;
 
-use gfx_maths::{Vec2, Vec3};
+pub use camera::Camera;
+use glam::{Vec2, Vec3};
 use std::time::Instant;
 pub use vertex::Vertex;
 
@@ -11,15 +13,18 @@ pub const MAX_INDICES: u64 = 32;
 pub struct Model {
     pub vertices: Vec<Vertex>,
     pub indices: Vec<u32>,
+    pub camera: Camera,
     last_step: Instant,
     switch: u32,
 }
 
 impl Model {
     pub fn new() -> Model {
+        let camera = Camera::new(2. * Vec3::ONE, Vec3::ZERO);
         Model {
             vertices: vertices_1(),
             indices: vec![0, 1, 2, 0, 2, 3],
+            camera,
             last_step: Instant::now(),
             switch: 0,
         }

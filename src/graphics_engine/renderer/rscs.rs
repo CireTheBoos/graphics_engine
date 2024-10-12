@@ -1,3 +1,4 @@
+mod model_view_proj;
 mod swapchain_images;
 mod vertices;
 
@@ -10,6 +11,8 @@ pub use vertices::{
 };
 
 pub use swapchain_images::create_swapchain_image_views;
+
+pub use model_view_proj::{allocate_mvp, MVP};
 
 fn create_buffer(
     device: &Device,

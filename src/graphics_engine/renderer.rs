@@ -4,15 +4,20 @@ mod rscs;
 mod shaders;
 
 use ash::vk::{
-    CommandBuffer, CommandPool, Fence, Framebuffer, Image, ImageView, PipelineStageFlags, Queue,
-    Semaphore, SubmitInfo,
+    CommandBuffer, CommandPool, Extent2D, Fence, Framebuffer, Image, ImageView, PipelineStageFlags,
+    Queue, Semaphore, SubmitInfo,
 };
 use logic::{create_framebuffers, Pipeline, RenderPass};
+use rscs::MVP;
 use vk_mem::Allocator;
 
-use crate::{boilerplate::new_semaphore, graphics_engine::Device, model::Vertex};
+use crate::{
+    boilerplate::new_semaphore,
+    graphics_engine::Device,
+    model::{Camera, Vertex},
+};
 
-use super::device::CustomBuffer;
+use super::device::{CustomBuffer, CustomMappedBuffer};
 
 pub struct Renderer {
     // Queues
@@ -24,6 +29,7 @@ pub struct Renderer {
     staging_vertices: CustomBuffer,
     indices: CustomBuffer,
     staging_indices: CustomBuffer,
+    mvp: CustomMappedBuffer,
     // Logic
     render_pass: RenderPass,
     framebuffers: Vec<Framebuffer>,
@@ -49,6 +55,7 @@ impl Renderer {
         let staging_vertices = rscs::allocate_staging_vertices(device);
         let indices = rscs::allocate_indices(device);
         let staging_indices = rscs::allocate_staging_indices(device);
+        let mvp = rscs::allocate_mvp(device);
 
         // Logic
         let render_pass = RenderPass::new(device);
@@ -79,6 +86,7 @@ impl Renderer {
             staging_vertices,
             indices,
             staging_indices,
+            mvp,
             render_pass,
             framebuffers,
             pipeline,
@@ -104,6 +112,7 @@ impl Renderer {
             self.staging_vertices.destroy(allocator);
             self.indices.destroy(allocator);
             self.staging_indices.destroy(allocator);
+            self.mvp.destroy(allocator);
 
             // Logic
             for framebuffer in &mut self.framebuffers {
@@ -122,17 +131,22 @@ impl Renderer {
         device: &Device,
         vertices: &Vec<Vertex>,
         indices: &Vec<u32>,
+        camera: &Camera,
         swapchain_image_idx: u32,
+        swapchain_extent: Extent2D,
         image_available: Semaphore,
         rendering_done: Semaphore,
         fence_rendering_done: Fence,
     ) {
-        // CPU COPY : From CPU to staging vertex buffer
+        // CPU COPY : staging vertices
         self.copy_vertices(device, vertices, indices);
 
         // SUBMIT : transfer
         let signal_semaphores = [self.transfer_done];
         self.submit_transfer(device, &signal_semaphores);
+
+        // CPU COPY : mvp
+        self.copy_mvp(camera, swapchain_extent);
 
         // RECORD : draw
         self.record_draw(device, swapchain_image_idx as usize);
@@ -152,6 +166,12 @@ impl Renderer {
             &signal_semaphores,
             signal_fence,
         );
+    }
+
+    fn copy_mvp(&mut self, camera: &Camera, extent: Extent2D) {
+        let mvp = MVP::from_camera(camera, extent);
+        let ptr: *const MVP = &mvp;
+        unsafe { self.mvp.ptr.copy_from(ptr as *const u8, MVP::size_of()) };
     }
 
     fn copy_vertices(&mut self, device: &Device, vertices: &Vec<Vertex>, indices: &Vec<u32>) {
