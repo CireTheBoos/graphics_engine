@@ -1,11 +1,11 @@
-mod game;
 mod graphics_engine;
 mod instance;
+mod model;
 
 use ash::vk::SurfaceKHR;
-use game::Model;
 use graphics_engine::GraphicsEngine;
 use instance::Instance;
+use model::Model;
 use winit::{
     application::ApplicationHandler,
     dpi::PhysicalSize,
@@ -30,7 +30,6 @@ pub struct App {
 impl App {
     pub fn new(raw_display_handle: RawDisplayHandle) -> App {
         App {
-            // rdh arg bc it enables surfaceKHR extension for this display
             instance: Instance::new(raw_display_handle),
             model: Model::new(),
             window: None,

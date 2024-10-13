@@ -4,6 +4,10 @@ use ash::vk::{
     Format, VertexInputAttributeDescription, VertexInputBindingDescription, VertexInputRate,
 };
 use glam::Vec3;
+pub struct Mesh {
+    pub vertices: Vec<Vertex>,
+    pub indices: Vec<u32>,
+}
 
 #[repr(C)]
 pub struct Vertex {

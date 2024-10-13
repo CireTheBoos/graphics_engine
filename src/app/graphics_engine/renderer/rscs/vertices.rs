@@ -1,9 +1,10 @@
 use ash::vk::{BufferCreateInfo, BufferUsageFlags, MemoryPropertyFlags, SharingMode};
 use vk_mem::AllocationCreateInfo;
 
-use crate::app::{
-    game::{MAX_INDICES, MAX_VERTICES},
-    graphics_engine::{device::CustomBuffer, model::Vertex, Device},
+use crate::app::graphics_engine::{
+    device::CustomBuffer,
+    mesher::{Vertex, MAX_INDICES, MAX_VERTICES},
+    Device,
 };
 
 pub fn allocate_vertices(device: &Device) -> CustomBuffer {

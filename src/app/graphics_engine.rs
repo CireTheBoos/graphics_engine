@@ -1,20 +1,19 @@
 mod device;
-mod model;
+mod mesher;
 mod presenter;
 mod renderer;
 
-use crate::app::{game::Camera, instance::Instance};
+use crate::app::{instance::Instance, model::Camera};
 use ash::vk::{Fence, Semaphore, SurfaceKHR};
 pub use device::Device;
-use model::from_square;
+use mesher::ToMesh;
 pub use presenter::Presenter;
 pub use renderer::Renderer;
 
-use super::game::objects::Square;
-
 // Given a surface :
-// - Renders to imgs from vertices
-// - Presents them
+// - Creates meshes from objects
+// - Renders imgs from meshes
+// - Presents imgs
 pub struct GraphicsEngine {
     // Essentials
     surface: SurfaceKHR,
@@ -70,7 +69,7 @@ impl GraphicsEngine {
         }
     }
 
-    pub fn frame(&mut self, squares: &Vec<Square>, camera: &Camera) {
+    pub fn frame<O: ToMesh>(&mut self, objects: &Vec<O>, camera: &Camera) {
         // Wait last rendering
         self.device
             .wait_reset_fence(self.fence_rendering_done, None);
@@ -81,7 +80,7 @@ impl GraphicsEngine {
             .acquire_next_image(&self.device, self.image_available);
 
         // Translates objects into meshes
-        let meshes = squares.iter().map(|square| from_square(square)).collect();
+        let meshes = objects.iter().map(|object| object.to_mesh()).collect();
 
         // Render to it
         self.renderer.submit_render(

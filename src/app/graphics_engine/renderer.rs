@@ -11,11 +11,11 @@ use logic::{create_framebuffers, Pipeline, RenderPass};
 use rscs::MVP;
 use vk_mem::Allocator;
 
-use crate::app::{game::Camera, graphics_engine::Device};
+use crate::app::{graphics_engine::Device, model::Camera};
 
 use super::{
     device::{CustomBuffer, CustomMappedBuffer},
-    model::{Mesh, Vertex},
+    mesher::{Mesh, Vertex},
 };
 
 pub struct Renderer {

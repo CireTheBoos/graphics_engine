@@ -10,8 +10,8 @@ fn main() {
     // Create event_loop and app
     let event_loop = EventLoop::new().expect("Failed to create event loop.");
     event_loop.set_control_flow(ControlFlow::Poll);
-    let rdh: RawDisplayHandle = rdh_from_event_loop(&event_loop);
-    let mut app = App::new(rdh);
+    let raw_display_handle: RawDisplayHandle = get_rdh_from_event_loop(&event_loop);
+    let mut app = App::new(raw_display_handle);
 
     // Run app on event_loop
     event_loop
@@ -19,7 +19,7 @@ fn main() {
         .expect("Failed to run the app.");
 }
 
-fn rdh_from_event_loop(event_loop: &EventLoop<()>) -> RawDisplayHandle {
+fn get_rdh_from_event_loop(event_loop: &EventLoop<()>) -> RawDisplayHandle {
     event_loop
         .owned_display_handle()
         .display_handle()

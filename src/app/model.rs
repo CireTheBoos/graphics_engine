@@ -1,15 +1,12 @@
 mod camera;
-pub mod objects;
+pub mod object;
 mod space;
 
 pub use camera::Camera;
 use glam::Vec3;
-use objects::Square;
+use object::Square;
 use space::Coord;
 use std::time::Instant;
-
-pub const MAX_VERTICES: u64 = 12;
-pub const MAX_INDICES: u64 = 32;
 
 // Handle vertices based on time
 pub struct Model {

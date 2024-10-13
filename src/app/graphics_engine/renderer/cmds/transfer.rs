@@ -3,9 +3,9 @@ use ash::vk::{
     CommandBufferLevel, CommandPool,
 };
 
-use crate::app::{
-    game::{MAX_INDICES, MAX_VERTICES},
-    graphics_engine::{model::Vertex, Device},
+use crate::app::graphics_engine::{
+    mesher::{Vertex, MAX_INDICES, MAX_VERTICES},
+    Device,
 };
 
 pub fn allocate_record_transfer(

@@ -11,7 +11,7 @@ use winit::raw_window_handle::RawDisplayHandle;
 const VALIDATION_LAYER: *const c_char = c"VK_LAYER_KHRONOS_validation".as_ptr();
 
 // Custom instance for presenting :
-// - Appropriate extensions for creating surfaces from "raw_display_handle" => surfaceKHR extension + OS-specific window extension
+// - Appropriate extensions for creating surfaces on the given display => surfaceKHR extension + OS-specific window extension
 // - Hold entry => Must be the only instance
 // - Validation layers on Debug
 pub struct Instance {
@@ -37,6 +37,7 @@ impl Drop for Instance {
 }
 
 impl Instance {
+    // "raw_display_handle" arg used to enable display_compatible surfaceKHR extension
     pub fn new(raw_display_handle: RawDisplayHandle) -> Instance {
         let entry: Entry = unsafe { Entry::load().expect("Failed to load vulkan.") };
         let instance = create_instance(&entry, raw_display_handle);

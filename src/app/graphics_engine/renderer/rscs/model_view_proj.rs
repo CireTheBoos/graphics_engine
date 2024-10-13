@@ -5,8 +5,8 @@ use glam::Mat4;
 use vk_mem::AllocationCreateInfo;
 
 use crate::app::{
-    game::Camera,
     graphics_engine::{device::CustomMappedBuffer, Device},
+    model::Camera,
 };
 
 #[repr(C)]

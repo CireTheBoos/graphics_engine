@@ -1,6 +1,6 @@
 use std::ops::Deref;
 
-use crate::app::graphics_engine::{model::Vertex, renderer::shaders::Compiler, Device};
+use crate::app::graphics_engine::{mesher::Vertex, renderer::shaders::Compiler, Device};
 
 use ash::vk::{
     ColorComponentFlags, CullModeFlags, DescriptorSetLayout, FrontFace, GraphicsPipelineCreateInfo,
