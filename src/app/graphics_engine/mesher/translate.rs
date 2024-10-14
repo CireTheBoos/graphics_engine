@@ -9,18 +9,15 @@ use super::{
 
 impl ToMesh for Square {
     fn to_mesh(&self) -> Mesh {
-        let top = self.position.coord + self.size * Vec3::X;
-        let bottom = self.position.coord - self.size * Vec3::X;
-        let right = self.position.coord + self.size * Vec3::Y;
-        let left = self.position.coord - self.size * Vec3::Y;
+        let top = Vertex::new(self.position.coord + self.size * Vec3::X, Vec3::X);
+        let bottom = Vertex::new(self.position.coord - self.size * Vec3::X, Vec3::X);
+        let right = Vertex::new(self.position.coord + self.size * Vec3::Y, Vec3::Y);
+        let left = Vertex::new(self.position.coord - self.size * Vec3::Y, Vec3::Y);
+        let near = Vertex::new(self.position.coord + self.size * Vec3::Z, Vec3::Z);
+        let far = Vertex::new(self.position.coord - self.size * Vec3::Z, Vec3::Z);
 
-        let top = Vertex::new(top, Vec3::X);
-        let bottom = Vertex::new(bottom, Vec3::Y);
-        let right = Vertex::new(right, Vec3::Z);
-        let left = Vertex::new(left, Vec3::ONE);
-
-        let vertices = vec![top, right, bottom, left];
-        let indices = vec![0, 1, 2, 0, 2, 3];
+        let vertices = vec![top, bottom, right, left, near, far];
+        let indices = vec![0,2,4,0,4,3,0,3,5,0,5,2,1,4,2,1,3,4,1,5,3,1,2,5];
 
         Mesh { vertices, indices }
     }

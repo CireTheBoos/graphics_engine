@@ -4,7 +4,7 @@ use ash::vk::{
     RenderPassBeginInfo, SubpassContents,
 };
 
-use crate::app::graphics_engine::{Device, Renderer};
+use crate::app::graphics_engine::{mesher::MAX_INDICES, Device, Renderer};
 
 pub fn allocate_draw(device: &Device, pool: CommandPool) -> CommandBuffer {
     let allocate_info = CommandBufferAllocateInfo::default()
@@ -42,7 +42,7 @@ impl Renderer {
             device.cmd_bind_index_buffer(self.draw, *self.indices, 0, IndexType::UINT32);
 
             // Draw
-            device.cmd_draw_indexed(self.draw, 6, 1, 0, 0, 0);
+            device.cmd_draw_indexed(self.draw, MAX_INDICES as u32, 1, 0, 0, 0);
 
             // End render pass
             device.cmd_end_render_pass(self.draw);
