@@ -66,7 +66,7 @@ impl Renderer {
 
         // Rscs agin
         let set_layouts = [*pipeline.mvp_layout()];
-        let mvp_set = rscs::allocate_descriptor_sets(device, &uniform_pool, &set_layouts)[0];
+        let mvp_set = rscs::allocate_configure_mvp_set(device, &uniform_pool, &set_layouts, &mvp);
 
         // Cmds
         let graphics_pool = cmds::create_graphics_pool(device);

@@ -10,6 +10,7 @@ pub struct CustomBuffer {
     pub allocation: Allocation,
 }
 
+// Deref : ash::vk::Buffer
 impl Deref for CustomBuffer {
     type Target = ash::vk::Buffer;
     fn deref(&self) -> &Self::Target {
@@ -26,6 +27,14 @@ impl CustomBuffer {
 pub struct CustomMappedBuffer {
     pub buffer: CustomBuffer,
     pub ptr: *mut u8,
+}
+
+// Deref : ash::vk::Buffer
+impl Deref for CustomMappedBuffer {
+    type Target = ash::vk::Buffer;
+    fn deref(&self) -> &Self::Target {
+        &self.buffer
+    }
 }
 
 impl CustomMappedBuffer {

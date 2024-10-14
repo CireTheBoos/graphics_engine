@@ -1,8 +1,7 @@
 use std::f32::consts::FRAC_PI_4;
 
 use ash::vk::{
-    BufferCreateInfo, BufferUsageFlags, DescriptorPool, DescriptorSet, DescriptorSetAllocateInfo,
-    DescriptorSetLayout, Extent2D, MemoryPropertyFlags, SharingMode,
+    Buffer, BufferCreateInfo, BufferUsageFlags, DescriptorBufferInfo, DescriptorPool, DescriptorSet, DescriptorSetLayout, DescriptorType, Extent2D, MemoryPropertyFlags, SharingMode, WriteDescriptorSet, WHOLE_SIZE
 };
 use glam::Mat4;
 use vk_mem::AllocationCreateInfo;
@@ -53,18 +52,27 @@ pub fn allocate_mvp(device: &Device) -> CustomMappedBuffer {
     CustomMappedBuffer::new(device.allocator(), buffer)
 }
 
-pub fn allocate_descriptor_sets(
+pub fn allocate_configure_mvp_set(
     device: &Device,
     descriptor_pool: &DescriptorPool,
     set_layouts: &[DescriptorSetLayout],
-) -> Vec<DescriptorSet> {
-    let allocate_info = DescriptorSetAllocateInfo::default()
-        .descriptor_pool(*descriptor_pool)
-        .set_layouts(&set_layouts);
+    buffer: &Buffer,
+) -> DescriptorSet {
+    let set = super::allocate_descriptor_sets(device, descriptor_pool, set_layouts)[0];
+    let buffer_info = DescriptorBufferInfo::default()
+        .buffer(*buffer)
+        .offset(0)
+        .range(WHOLE_SIZE);
+    let buffer_infos = [buffer_info];
+    let write = WriteDescriptorSet::default()
+        .buffer_info(&buffer_infos)
+        .dst_set(set)
+        .dst_binding(0)
+        .dst_array_element(0)
+        .descriptor_type(DescriptorType::UNIFORM_BUFFER)
+        .descriptor_count(1);
+    let descriptor_writes = [write];
 
-    unsafe {
-        device
-            .allocate_descriptor_sets(&allocate_info)
-            .expect("Failed to allocate descriptor set")
-    }
+    unsafe { device.update_descriptor_sets(&descriptor_writes, &[]) };
+    set
 }
