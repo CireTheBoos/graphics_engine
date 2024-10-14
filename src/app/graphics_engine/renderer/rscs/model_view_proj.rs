@@ -1,6 +1,9 @@
 use std::f32::consts::FRAC_PI_4;
 
-use ash::vk::{BufferCreateInfo, BufferUsageFlags, Extent2D, MemoryPropertyFlags, SharingMode};
+use ash::vk::{
+    BufferCreateInfo, BufferUsageFlags, DescriptorPool, DescriptorSet, DescriptorSetAllocateInfo,
+    DescriptorSetLayout, Extent2D, MemoryPropertyFlags, SharingMode,
+};
 use glam::Mat4;
 use vk_mem::AllocationCreateInfo;
 
@@ -48,4 +51,20 @@ pub fn allocate_mvp(device: &Device) -> CustomMappedBuffer {
     let buffer = super::create_buffer(device, &buffer_info, &create_info);
 
     CustomMappedBuffer::new(device.allocator(), buffer)
+}
+
+pub fn allocate_descriptor_sets(
+    device: &Device,
+    descriptor_pool: &DescriptorPool,
+    set_layouts: &[DescriptorSetLayout],
+) -> Vec<DescriptorSet> {
+    let allocate_info = DescriptorSetAllocateInfo::default()
+        .descriptor_pool(*descriptor_pool)
+        .set_layouts(&set_layouts);
+
+    unsafe {
+        device
+            .allocate_descriptor_sets(&allocate_info)
+            .expect("Failed to allocate descriptor set")
+    }
 }

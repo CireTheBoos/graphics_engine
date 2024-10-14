@@ -13,7 +13,7 @@ pub use vertices::{
 
 pub use swapchain_images::create_swapchain_image_views;
 
-pub use model_view_proj::{allocate_mvp, MVP};
+pub use model_view_proj::{allocate_descriptor_sets, allocate_mvp, MVP};
 
 pub use descriptor_pools::create_uniform_buffer_pool;
 

@@ -142,6 +142,10 @@ impl Pipeline {
         }
     }
 
+    pub fn mvp_layout(&self) -> &DescriptorSetLayout {
+        &self.mvp_layout
+    }
+
     pub fn destroy(&self, device: &Device) {
         unsafe {
             device.destroy_descriptor_set_layout(self.mvp_layout, None);

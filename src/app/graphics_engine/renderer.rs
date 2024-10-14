@@ -4,8 +4,8 @@ mod rscs;
 mod shaders;
 
 use ash::vk::{
-    CommandBuffer, CommandPool, DescriptorPool, Extent2D, Fence, Framebuffer, Image, ImageView,
-    PipelineStageFlags, Queue, Semaphore, SubmitInfo,
+    CommandBuffer, CommandPool, DescriptorPool, DescriptorSet, Extent2D, Fence, Framebuffer, Image,
+    ImageView, PipelineStageFlags, Queue, Semaphore, SubmitInfo,
 };
 use logic::{create_framebuffers, Pipeline, RenderPass};
 use rscs::MVP;
@@ -30,6 +30,7 @@ pub struct Renderer {
     staging_indices: CustomBuffer,
     mvp: CustomMappedBuffer,
     uniform_pool: DescriptorPool,
+    mvp_set: DescriptorSet,
     // Logic
     render_pass: RenderPass,
     framebuffers: Vec<Framebuffer>,
@@ -63,6 +64,10 @@ impl Renderer {
         let framebuffers = create_framebuffers(device, &render_pass, &swapchain_image_views);
         let pipeline = Pipeline::new(device, &render_pass);
 
+        // Rscs agin
+        let set_layouts = [*pipeline.mvp_layout()];
+        let mvp_set = rscs::allocate_descriptor_sets(device, &uniform_pool, &set_layouts)[0];
+
         // Cmds
         let graphics_pool = cmds::create_graphics_pool(device);
         let transfer_pool = cmds::create_transfer_pool(device);
@@ -89,6 +94,7 @@ impl Renderer {
             staging_indices,
             mvp,
             uniform_pool,
+            mvp_set,
             render_pass,
             framebuffers,
             pipeline,
