@@ -17,7 +17,9 @@ impl ToMesh for Square {
         let far = Vertex::new(self.position.coord - self.size * Vec3::Z, Vec3::Z);
 
         let vertices = vec![top, bottom, right, left, near, far];
-        let indices = vec![0,2,4,0,4,3,0,3,5,0,5,2,1,4,2,1,3,4,1,5,3,1,2,5];
+        let indices = vec![
+            0, 2, 4, 0, 4, 3, 0, 3, 5, 0, 5, 2, 1, 4, 2, 1, 3, 4, 1, 5, 3, 1, 2, 5,
+        ];
 
         Mesh { vertices, indices }
     }

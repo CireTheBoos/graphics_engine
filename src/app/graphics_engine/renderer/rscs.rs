@@ -1,3 +1,4 @@
+mod descriptor_pools;
 mod model_view_proj;
 mod swapchain_images;
 mod vertices;
@@ -13,6 +14,8 @@ pub use vertices::{
 pub use swapchain_images::create_swapchain_image_views;
 
 pub use model_view_proj::{allocate_mvp, MVP};
+
+pub use descriptor_pools::create_uniform_buffer_pool;
 
 fn create_buffer(
     device: &Device,

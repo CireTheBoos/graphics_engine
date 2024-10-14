@@ -4,8 +4,8 @@ mod rscs;
 mod shaders;
 
 use ash::vk::{
-    CommandBuffer, CommandPool, Extent2D, Fence, Framebuffer, Image, ImageView, PipelineStageFlags,
-    Queue, Semaphore, SubmitInfo,
+    CommandBuffer, CommandPool, DescriptorPool, Extent2D, Fence, Framebuffer, Image, ImageView,
+    PipelineStageFlags, Queue, Semaphore, SubmitInfo,
 };
 use logic::{create_framebuffers, Pipeline, RenderPass};
 use rscs::MVP;
@@ -29,6 +29,7 @@ pub struct Renderer {
     indices: CustomBuffer,
     staging_indices: CustomBuffer,
     mvp: CustomMappedBuffer,
+    uniform_pool: DescriptorPool,
     // Logic
     render_pass: RenderPass,
     framebuffers: Vec<Framebuffer>,
@@ -55,6 +56,7 @@ impl Renderer {
         let indices = rscs::allocate_indices(device);
         let staging_indices = rscs::allocate_staging_indices(device);
         let mvp = rscs::allocate_mvp(device);
+        let uniform_pool = rscs::create_uniform_buffer_pool(device);
 
         // Logic
         let render_pass = RenderPass::new(device);
@@ -86,6 +88,7 @@ impl Renderer {
             indices,
             staging_indices,
             mvp,
+            uniform_pool,
             render_pass,
             framebuffers,
             pipeline,
@@ -112,6 +115,7 @@ impl Renderer {
             self.indices.destroy(allocator);
             self.staging_indices.destroy(allocator);
             self.mvp.destroy(allocator);
+            device.destroy_descriptor_pool(self.uniform_pool, None);
 
             // Logic
             for framebuffer in &mut self.framebuffers {
