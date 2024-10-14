@@ -41,6 +41,17 @@ impl Renderer {
             // Bind : indices
             device.cmd_bind_index_buffer(self.draw, *self.indices, 0, IndexType::UINT32);
 
+            // Bind : MVP
+            let sets = [self.mvp_set];
+            device.cmd_bind_descriptor_sets(
+                self.draw,
+                PipelineBindPoint::GRAPHICS,
+                self.pipeline.layout,
+                0,
+                &sets,
+                &[],
+            );
+
             // Draw
             device.cmd_draw_indexed(self.draw, MAX_INDICES as u32, 1, 0, 0, 0);
 

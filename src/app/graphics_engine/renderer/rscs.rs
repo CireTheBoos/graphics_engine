@@ -4,7 +4,9 @@ mod swapchain_images;
 mod vertices;
 
 use crate::app::graphics_engine::{device::CustomBuffer, Device};
-use ash::vk::{BufferCreateInfo, DescriptorPool, DescriptorSet, DescriptorSetAllocateInfo, DescriptorSetLayout};
+use ash::vk::{
+    BufferCreateInfo, DescriptorPool, DescriptorSet, DescriptorSetAllocateInfo, DescriptorSetLayout,
+};
 use vk_mem::{Alloc, AllocationCreateInfo};
 
 pub use vertices::{

@@ -16,8 +16,8 @@ use super::descriptor_set::create_mvp_layout;
 
 pub struct Pipeline {
     pipeline: ash::vk::Pipeline,
-    layout: PipelineLayout,
-    mvp_layout: DescriptorSetLayout,
+    pub layout: PipelineLayout,
+    pub mvp_layout: DescriptorSetLayout,
 }
 
 // Deref to ash::vk::Pipeline
@@ -102,9 +102,9 @@ impl Pipeline {
 
         // Layout
         let mvp_layout = create_mvp_layout(device);
-        // let set_layouts = [mvp_layout];
+        let set_layouts = [mvp_layout];
 
-        let create_info = PipelineLayoutCreateInfo::default(); //.set_layouts(&set_layouts);
+        let create_info = PipelineLayoutCreateInfo::default().set_layouts(&set_layouts);
         let layout = unsafe {
             device
                 .create_pipeline_layout(&create_info, None)

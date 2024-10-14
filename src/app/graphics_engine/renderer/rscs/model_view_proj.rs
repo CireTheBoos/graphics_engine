@@ -1,7 +1,9 @@
 use std::f32::consts::FRAC_PI_4;
 
 use ash::vk::{
-    Buffer, BufferCreateInfo, BufferUsageFlags, DescriptorBufferInfo, DescriptorPool, DescriptorSet, DescriptorSetLayout, DescriptorType, Extent2D, MemoryPropertyFlags, SharingMode, WriteDescriptorSet, WHOLE_SIZE
+    Buffer, BufferCreateInfo, BufferUsageFlags, DescriptorBufferInfo, DescriptorPool,
+    DescriptorSet, DescriptorSetLayout, DescriptorType, Extent2D, MemoryPropertyFlags, SharingMode,
+    WriteDescriptorSet, WHOLE_SIZE,
 };
 use glam::Mat4;
 use vk_mem::AllocationCreateInfo;
