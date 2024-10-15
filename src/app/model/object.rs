@@ -1,3 +1,5 @@
-mod square;
+mod cube;
+mod octahedron;
 
-pub use square::Square;
+pub use cube::Cube;
+pub use octahedron::Octahedron;

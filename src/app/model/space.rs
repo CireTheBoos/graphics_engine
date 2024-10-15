@@ -1,4 +1,4 @@
-use glam::{Vec3, Vec4};
+use glam::{Quat, Vec3};
 
 pub struct Coord {
     pub coord: Vec3,
@@ -10,16 +10,24 @@ impl Coord {
             coord: Vec3 { x, y, z },
         }
     }
+
+    pub fn to_vec3(&self) -> Vec3 {
+        self.coord
+    }
 }
 
 pub struct Orientation {
-    pub _direction: Vec4,
+    orientation: Quat,
 }
 
 impl Orientation {
-    pub fn null() -> Orientation {
+    pub fn initial() -> Orientation {
         Orientation {
-            _direction: Vec4::ZERO,
+            orientation: Quat::IDENTITY,
         }
+    }
+
+    pub fn to_quat(&self) -> Quat {
+        self.orientation
     }
 }

@@ -15,7 +15,7 @@ use winit::{
     window::{Window, WindowId},
 };
 
-const TITLE: &str = "Renderer";
+const TITLE: &str = "Real Engine";
 const WIDTH: u32 = 600;
 const HEIGHT: u32 = 600;
 
@@ -59,7 +59,7 @@ impl App {
         self.graphics_engine
             .as_mut()
             .unwrap()
-            .frame(&self.model.squares, &self.model.camera);
+            .frame(self.model.objects_to_draw(), &self.model.camera);
         // Request "Redraw" again, making it loop as fast as possible
         self.window.as_ref().unwrap().request_redraw();
     }
@@ -98,7 +98,7 @@ fn create_window(event_loop: &ActiveEventLoop) -> Window {
         .with_inner_size(PhysicalSize::new(WIDTH, HEIGHT));
     event_loop
         .create_window(window_attributes)
-        .expect("Failed to create window.")
+        .expect("Failed to create window")
 }
 
 // Get inner window as a surfaceKHR
@@ -111,6 +111,6 @@ fn create_surface(instance: &Instance, window: &Window) -> SurfaceKHR {
             window.window_handle().unwrap().into(),
             None,
         )
-        .expect("Failed to create surface.")
+        .expect("Failed to create surface")
     }
 }

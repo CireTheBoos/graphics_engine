@@ -21,8 +21,8 @@ pub struct MVP {
 }
 
 impl MVP {
-    pub fn from_camera(camera: &Camera, extent: Extent2D) -> MVP {
-        let model = glam::Mat4::IDENTITY;
+    pub fn from_camera_transform(camera: &Camera, extent: Extent2D, transform: Mat4) -> MVP {
+        let model = transform;
         let view = glam::Mat4::look_at_rh(camera.eye, camera.center, camera.up);
         let fov_y_radians = FRAC_PI_4;
         let aspect_ratio = extent.width as f32 / extent.height as f32;

@@ -1,17 +1,22 @@
 mod camera;
 pub mod object;
-mod space;
+pub mod space;
 
 pub use camera::Camera;
 use glam::Vec3;
-use object::Square;
+use object::{Cube, Octahedron};
 use space::Coord;
 use std::time::Instant;
 
+use super::graphics_engine::ToMesh;
+
 // Handle vertices based on time
 pub struct Model {
-    pub squares: Vec<Square>,
     pub camera: Camera,
+    // Objects
+    octahedrons: Vec<Octahedron>,
+    cubes: Vec<Cube>,
+    // Stepping
     last_step: Instant,
     switch: u32,
 }
@@ -19,10 +24,12 @@ pub struct Model {
 impl Model {
     pub fn new() -> Model {
         let camera = Camera::new(2. * Vec3::ONE, Vec3::ZERO);
-        let square = Square::new(Coord::new(0.5, 0.5, 1.), 0.5);
+        let octahedron_1 = Octahedron::new_unoriented(Coord::new(0.5, 0.5, 0.5), 0.5);
+        let cube_1 = Cube::new_unoriented(Coord::new(-0.5, -0.5, -0.5), 0.25);
         Model {
-            squares: vec![square],
             camera,
+            octahedrons: vec![octahedron_1],
+            cubes: vec![cube_1],
             last_step: Instant::now(),
             switch: 0,
         }
@@ -32,14 +39,26 @@ impl Model {
         if self.last_step.elapsed().as_millis() >= 1000 {
             if self.switch == 0 {
                 self.switch = 1;
-                self.squares[0].position = Coord::new(-0.5, -0.5, 1.);
-                self.squares[0].size = 0.25;
+                self.octahedrons[0].position = Coord::new(-0.5, -0.5, -0.5);
+                self.cubes[0].position = Coord::new(0.5, 0.5, 0.5);
             } else {
                 self.switch = 0;
-                self.squares[0].position = Coord::new(0.5, 0.5, 1.);
-                self.squares[0].size = 0.5;
+                self.octahedrons[0].position = Coord::new(0.5, 0.5, 0.5);
+                self.cubes[0].position = Coord::new(-0.5, -0.5, -0.5);
             }
             self.last_step = Instant::now();
         }
+    }
+
+    pub fn objects_to_draw(&self) -> Vec<&dyn ToMesh> {
+        let mut objects: Vec<&dyn ToMesh> =
+            Vec::with_capacity(self.cubes.len() + self.octahedrons.len());
+        for octahedron in &self.octahedrons {
+            objects.push(octahedron);
+        }
+        for cube in &self.cubes {
+            objects.push(cube);
+        }
+        objects
     }
 }

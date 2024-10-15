@@ -6,14 +6,14 @@ mod renderer;
 use crate::app::{instance::Instance, model::Camera};
 use ash::vk::{Fence, Semaphore, SurfaceKHR};
 pub use device::Device;
-use mesher::ToMesh;
+pub use mesher::ToMesh;
 pub use presenter::Presenter;
 pub use renderer::Renderer;
 
-// Given a surface :
-// - Creates meshes from objects
-// - Renders imgs from meshes
-// - Presents imgs
+// Given a surfaceKHR :
+// - Creates meshes from objects = mesher (hold no data)
+// - Renders imgs from meshes = renderer
+// - Presents imgs = presenter
 pub struct GraphicsEngine {
     // Essentials
     surface: SurfaceKHR,
@@ -36,7 +36,7 @@ impl GraphicsEngine {
         let presenter = Presenter::new(&device, &surface);
         let renderer = Renderer::new(&device, presenter.swapchain_images());
 
-        // Sync
+        // Syncs
         let image_available = device.new_semaphore();
         let rendering_done = device.new_semaphore();
         let fence_rendering_done = device.new_fence(true);
@@ -69,7 +69,7 @@ impl GraphicsEngine {
         }
     }
 
-    pub fn frame<O: ToMesh>(&mut self, objects: &Vec<O>, camera: &Camera) {
+    pub fn frame(&mut self, objects: Vec<&dyn ToMesh>, camera: &Camera) {
         // Wait last rendering
         self.device
             .wait_reset_fence(self.fence_rendering_done, None);
@@ -80,7 +80,10 @@ impl GraphicsEngine {
             .acquire_next_image(&self.device, self.image_available);
 
         // Translates objects into meshes
-        let meshes = objects.iter().map(|object| object.to_mesh()).collect();
+        let meshes = objects
+            .into_iter()
+            .map(|object| (object.transform(), object.mesh()))
+            .collect();
 
         // Render to it
         self.renderer.submit_render(

@@ -7,6 +7,7 @@ use ash::vk::{
     CommandBuffer, CommandPool, DescriptorPool, DescriptorSet, Extent2D, Fence, Framebuffer, Image,
     ImageView, PipelineStageFlags, Queue, Semaphore, SubmitInfo,
 };
+use glam::Mat4;
 use logic::{create_framebuffers, Pipeline, RenderPass};
 use rscs::MVP;
 use vk_mem::Allocator;
@@ -138,7 +139,7 @@ impl Renderer {
     pub fn submit_render(
         &mut self,
         device: &Device,
-        meshes: Vec<Mesh>,
+        meshes: Vec<(Mat4, Mesh)>,
         camera: &Camera,
         swapchain_image_idx: u32,
         swapchain_extent: Extent2D,
@@ -146,18 +147,15 @@ impl Renderer {
         rendering_done: Semaphore,
         fence_rendering_done: Fence,
     ) {
-        let vertices = &meshes[0].vertices;
-        let indices = &meshes[0].indices;
-
         // CPU COPY : staging vertices
-        self.copy_vertices(device, vertices, indices);
+        self.copy_vertices(device, &meshes);
 
         // SUBMIT : transfer
         let signal_semaphores = [self.transfer_done];
         self.submit_transfer(device, &signal_semaphores);
 
         // CPU COPY : mvp
-        self.copy_mvp(camera, swapchain_extent);
+        self.copy_mvp(camera, swapchain_extent, &meshes);
 
         // RECORD : draw
         self.record_draw(device, swapchain_image_idx as usize);
@@ -179,13 +177,9 @@ impl Renderer {
         );
     }
 
-    fn copy_mvp(&mut self, camera: &Camera, extent: Extent2D) {
-        let mvp = MVP::from_camera(camera, extent);
-        let ptr: *const MVP = &mvp;
-        unsafe { self.mvp.ptr.copy_from(ptr as *const u8, MVP::size_of()) };
-    }
-
-    fn copy_vertices(&mut self, device: &Device, vertices: &Vec<Vertex>, indices: &Vec<u32>) {
+    fn copy_vertices(&mut self, device: &Device, meshes: &Vec<(Mat4, Mesh)>) {
+        let vertices = &meshes[0].1.vertices;
+        let indices = &meshes[0].1.indices;
         unsafe {
             // map
             let mapped_vertices = device
@@ -215,6 +209,13 @@ impl Renderer {
                 .allocator()
                 .unmap_memory(&mut self.staging_indices.allocation);
         }
+    }
+
+    fn copy_mvp(&mut self, camera: &Camera, extent: Extent2D, meshes: &Vec<(Mat4, Mesh)>) {
+        let transform = meshes[0].0;
+        let mvp = MVP::from_camera_transform(camera, extent, transform);
+        let ptr: *const MVP = &mvp;
+        unsafe { self.mvp.ptr.copy_from(ptr as *const u8, MVP::size_of()) };
     }
 
     fn submit_transfer(&self, device: &Device, signal_semaphores: &[Semaphore]) {
