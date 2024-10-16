@@ -46,7 +46,10 @@ impl Device {
     }
 
     pub fn ct_destroy_buffer(&self, buffer: &mut Buffer) {
-        unsafe { self.allocator().destroy_buffer(buffer.buffer, &mut buffer.allocation) };
+        unsafe {
+            self.allocator()
+                .destroy_buffer(buffer.buffer, &mut buffer.allocation)
+        };
     }
 
     pub fn ct_create_mapped_buffer(
@@ -74,7 +77,8 @@ impl Device {
     pub fn ct_destroy_mapped_buffer(&self, mapped_buffer: &mut MappedBuffer) {
         unsafe {
             self.allocator().unmap_memory(&mut mapped_buffer.allocation);
-            self.allocator().destroy_buffer(mapped_buffer.buffer, &mut mapped_buffer.allocation);
+            self.allocator()
+                .destroy_buffer(mapped_buffer.buffer, &mut mapped_buffer.allocation);
         }
     }
 }

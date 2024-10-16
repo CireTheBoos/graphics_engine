@@ -1,3 +1,10 @@
+use ash::vk::ShaderModule;
+use shaderc::ShaderKind;
+
+use crate::app::graphics_engine::Device;
+
+use super::compiler::Compiler;
+
 pub const VERTEX: &str = "
 #version 450
 
@@ -17,3 +24,9 @@ void main() {
     fragColor = inColor;
 }
 ";
+
+impl Compiler {
+    pub fn vertex(&self, device: &Device) -> ShaderModule {
+        self.to_shader_module(device, VERTEX, ShaderKind::Vertex, "vertex.glsl")
+    }
+}

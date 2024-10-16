@@ -1,3 +1,10 @@
+use ash::vk::ShaderModule;
+use shaderc::ShaderKind;
+
+use crate::app::graphics_engine::Device;
+
+use super::compiler::Compiler;
+
 pub const FRAGMENT: &str = " 
 #version 450
 
@@ -9,3 +16,9 @@ void main() {
     outColor = vec4(fragColor, 1.0);
 }
 ";
+
+impl Compiler {
+    pub fn fragment(&self, device: &Device) -> ShaderModule {
+        self.to_shader_module(device, FRAGMENT, ShaderKind::Fragment, "fragment.glsl")
+    }
+}
