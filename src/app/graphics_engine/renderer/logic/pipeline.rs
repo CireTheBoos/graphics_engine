@@ -5,19 +5,17 @@ use crate::app::graphics_engine::{mesher::Vertex, renderer::shaders::Compiler, D
 use ash::vk::{
     ColorComponentFlags, CullModeFlags, DescriptorSetLayout, FrontFace, GraphicsPipelineCreateInfo,
     Offset2D, PipelineCache, PipelineColorBlendAttachmentState, PipelineColorBlendStateCreateInfo,
-    PipelineInputAssemblyStateCreateInfo, PipelineLayout, PipelineLayoutCreateInfo,
-    PipelineMultisampleStateCreateInfo, PipelineRasterizationStateCreateInfo,
-    PipelineShaderStageCreateInfo, PipelineVertexInputStateCreateInfo,
-    PipelineViewportStateCreateInfo, PolygonMode, PrimitiveTopology, Rect2D, SampleCountFlags,
-    ShaderStageFlags, Viewport,
+    PipelineInputAssemblyStateCreateInfo, PipelineMultisampleStateCreateInfo,
+    PipelineRasterizationStateCreateInfo, PipelineShaderStageCreateInfo,
+    PipelineVertexInputStateCreateInfo, PipelineViewportStateCreateInfo, PolygonMode,
+    PrimitiveTopology, Rect2D, SampleCountFlags, ShaderStageFlags, Viewport,
 };
 
-use super::descriptor_set::create_mvp_layout;
+use super::layout::Layout;
 
 pub struct Pipeline {
     pipeline: ash::vk::Pipeline,
-    pub layout: PipelineLayout,
-    pub mvp_layout: DescriptorSetLayout,
+    pub layout: Layout,
 }
 
 // Deref to ash::vk::Pipeline
@@ -101,15 +99,7 @@ impl Pipeline {
             .attachments(&attachments);
 
         // Layout
-        let mvp_layout = create_mvp_layout(device);
-        let set_layouts = [mvp_layout];
-
-        let create_info = PipelineLayoutCreateInfo::default().set_layouts(&set_layouts);
-        let layout = unsafe {
-            device
-                .create_pipeline_layout(&create_info, None)
-                .expect("Failed to create pipeline layout.")
-        };
+        let layout = Layout::new(device);
 
         // CREATE : pipeline
         let pipeline_info = GraphicsPipelineCreateInfo::default()
@@ -120,7 +110,7 @@ impl Pipeline {
             .rasterization_state(&rasterization_state)
             .multisample_state(&multisample_state)
             .color_blend_state(&color_blend_state)
-            .layout(layout)
+            .layout(layout.pipeline)
             .render_pass(*render_pass)
             .subpass(0);
 
@@ -135,21 +125,16 @@ impl Pipeline {
         // Cleanup and return
         unsafe { device.destroy_shader_module(vertex, None) };
         unsafe { device.destroy_shader_module(fragment, None) };
-        Pipeline {
-            pipeline,
-            layout,
-            mvp_layout,
-        }
+        Pipeline { pipeline, layout }
     }
 
     pub fn mvp_layout(&self) -> &DescriptorSetLayout {
-        &self.mvp_layout
+        &self.layout.mvp
     }
 
-    pub fn destroy(&self, device: &Device) {
+    pub fn destroy(&mut self, device: &Device) {
         unsafe {
-            device.destroy_descriptor_set_layout(self.mvp_layout, None);
-            device.destroy_pipeline_layout(self.layout, None);
+            self.layout.destroy(device);
             device.destroy_pipeline(self.pipeline, None);
         }
     }

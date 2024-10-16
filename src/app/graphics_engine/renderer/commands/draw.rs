@@ -46,7 +46,7 @@ impl Renderer {
             device.cmd_bind_descriptor_sets(
                 self.draw,
                 PipelineBindPoint::GRAPHICS,
-                self.pipeline.layout,
+                self.pipeline.layout.pipeline,
                 0,
                 &sets,
                 &[],
