@@ -59,7 +59,7 @@ impl App {
         self.graphics_engine
             .as_mut()
             .unwrap()
-            .frame(self.model.objects_to_draw(), &self.model.camera);
+            .frame(self.model.objects_to_draw(), self.model.camera());
         // Request "Redraw" again, making it loop as fast as possible
         self.window.as_ref().unwrap().request_redraw();
     }

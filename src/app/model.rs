@@ -3,7 +3,7 @@ pub mod object;
 pub mod space;
 
 pub use camera::Camera;
-use glam::Vec3;
+use glam::{Quat, Vec3};
 use object::{Cube, Octahedron};
 use space::Coord;
 use std::time::Instant;
@@ -12,13 +12,12 @@ use super::graphics_engine::ToMesh;
 
 // Handle vertices based on time
 pub struct Model {
-    pub camera: Camera,
+    camera: Camera,
     // Objects
     octahedrons: Vec<Octahedron>,
     cubes: Vec<Cube>,
     // Stepping
     last_step: Instant,
-    switch: u32,
 }
 
 impl Model {
@@ -31,21 +30,16 @@ impl Model {
             octahedrons: vec![octahedron_1],
             cubes: vec![cube_1],
             last_step: Instant::now(),
-            switch: 0,
         }
     }
 
     pub fn step_if_enough_time(&mut self) {
-        if self.last_step.elapsed().as_millis() >= 1000 {
-            if self.switch == 0 {
-                self.switch = 1;
-                self.octahedrons[0].position = Coord::new(-0.5, -0.5, -0.5);
-                self.cubes[0].position = Coord::new(0.5, 0.5, 0.5);
-            } else {
-                self.switch = 0;
-                self.octahedrons[0].position = Coord::new(0.5, 0.5, 0.5);
-                self.cubes[0].position = Coord::new(-0.5, -0.5, -0.5);
-            }
+        let elapsed = self.last_step.elapsed().as_millis();
+        if elapsed >= 20 {
+            self.octahedrons[0]
+                .orientation
+                .rotate(Quat::from_rotation_x(0.1));
+            self.cubes[0].orientation.rotate(Quat::from_rotation_x(0.1));
             self.last_step = Instant::now();
         }
     }
@@ -60,5 +54,9 @@ impl Model {
             objects.push(cube);
         }
         objects
+    }
+
+    pub fn camera(&self) -> &Camera {
+        &self.camera
     }
 }

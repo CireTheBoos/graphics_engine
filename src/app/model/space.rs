@@ -30,4 +30,8 @@ impl Orientation {
     pub fn to_quat(&self) -> Quat {
         self.orientation
     }
+
+    pub fn rotate(&mut self, quat: Quat) {
+        self.orientation *= quat;
+    }
 }

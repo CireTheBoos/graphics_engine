@@ -1,6 +1,7 @@
-mod cmds;
+mod commands;
+mod descriptors;
 mod logic;
-mod rscs;
+mod resources;
 mod shaders;
 
 use ash::vk::{
@@ -9,7 +10,7 @@ use ash::vk::{
 };
 use glam::Mat4;
 use logic::{create_framebuffers, Pipeline, RenderPass};
-use rscs::MVP;
+use resources::MVP;
 use vk_mem::Allocator;
 
 use crate::app::{graphics_engine::Device, model::Camera};
@@ -23,20 +24,21 @@ pub struct Renderer {
     // Queues
     transfer_queue: Queue,
     graphics_queue: Queue,
-    // Rscs
+    // Resources
     swapchain_image_views: Vec<ImageView>,
     vertices: CustomBuffer,
     staging_vertices: CustomBuffer,
     indices: CustomBuffer,
     staging_indices: CustomBuffer,
     mvp: CustomMappedBuffer,
-    uniform_pool: DescriptorPool,
-    mvp_set: DescriptorSet,
     // Logic
     render_pass: RenderPass,
     framebuffers: Vec<Framebuffer>,
     pipeline: Pipeline,
-    // Cmds
+    // Descriptors
+    uniform_pool: DescriptorPool,
+    mvp_set: DescriptorSet,
+    // Commands
     graphics_pool: CommandPool,
     transfer_pool: CommandPool,
     draw: CommandBuffer,
@@ -51,29 +53,31 @@ impl Renderer {
         let graphics_queue = unsafe { device.get_device_queue(device.infos.graphics_idx, 0) };
         let transfer_queue = unsafe { device.get_device_queue(device.infos.transfer_idx, 0) };
 
-        // Rscs
-        let swapchain_image_views = rscs::create_swapchain_image_views(device, swapchain_images);
-        let vertices = rscs::allocate_vertices(device);
-        let staging_vertices = rscs::allocate_staging_vertices(device);
-        let indices = rscs::allocate_indices(device);
-        let staging_indices = rscs::allocate_staging_indices(device);
-        let mvp = rscs::allocate_mvp(device);
-        let uniform_pool = rscs::create_uniform_buffer_pool(device);
+        // Resources
+        let swapchain_image_views =
+            resources::create_swapchain_image_views(device, swapchain_images);
+        let vertices = resources::allocate_vertices(device);
+        let staging_vertices = resources::allocate_staging_vertices(device);
+        let indices = resources::allocate_indices(device);
+        let staging_indices = resources::allocate_staging_indices(device);
 
         // Logic
         let render_pass = RenderPass::new(device);
         let framebuffers = create_framebuffers(device, &render_pass, &swapchain_image_views);
         let pipeline = Pipeline::new(device, &render_pass);
 
-        // Rscs agin
+        // Descriptors
+        let mvp = resources::allocate_mvp(device);
+        let uniform_pool = descriptors::create_uniform_buffer_pool(device);
         let set_layouts = [*pipeline.mvp_layout()];
-        let mvp_set = rscs::allocate_configure_mvp_set(device, &uniform_pool, &set_layouts, &mvp);
+        let mvp_set =
+            descriptors::allocate_configure_mvp_set(device, &uniform_pool, &set_layouts, &mvp);
 
         // Cmds
-        let graphics_pool = cmds::create_graphics_pool(device);
-        let transfer_pool = cmds::create_transfer_pool(device);
-        let draw = cmds::allocate_draw(device, graphics_pool);
-        let transfer = cmds::allocate_record_transfer(
+        let graphics_pool = commands::create_graphics_pool(device);
+        let transfer_pool = commands::create_transfer_pool(device);
+        let draw = commands::allocate_draw(device, graphics_pool);
+        let transfer = commands::allocate_record_transfer(
             device,
             transfer_pool,
             &staging_vertices,
