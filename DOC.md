@@ -15,24 +15,23 @@ The project is built with a responsibility-driven design.
 Inside App we got :
 - **Model** : Responsible of objects management. It can create, destroy, load or drop them.
 - **GraphicsEngine** : Responsible of translating objects to meshes, then rendering them on screen.
-- **(For later ?) PhysicsEngine** : Will be responsible of translating objects to bodies, then stepping the physics simulation.
 
 ## Graphics engine
 
 Because GraphicsEngine was getting too complex. It was split into subresponsibilities :
-- **Presenter** : Responsible of managing the swapchain (quite light).
-- **Renderer** : Responsible of rendering meshes (quite heavy).
-- **Mesher** : Responsible of creating meshes from objects (light too).
+- **Presenter** : Responsible of managing the swapchain.
+- **Mesher** : Responsible of creating meshes from the model.
+- **Renderer** : Responsible of rendering meshes (quite heavy compared to the other 2).
 
-Graphics engine distribute work and handle synchronization.
+GraphicsEngine object distribute work and handle synchronization.
 
 # Custom vulkan devices
 
-`ash::Device` are wrapped into my own Device objects. It allows to :
+This is one of my favorite design as I find having an app-specific mighty device super practical.
+`ash::Device` are wrapped into Device objects. It allows to :
 - Keep accessible physical device informations (queue family indices, surface capabilities, etc.).
 - Provide vulkan extension fns (like the ones in `ash::khr::swapchain::Device`).
-- Provide memory-management fns with VMA allocator.
+- Provide custom memory-management fns with VMA allocator.
 - Provide boilerplate-free fns (creating syncs for example).
 
-The design is currently setup for each "engines" to have its own device.
-It's still possible for multiple devices to share the same physical device, I will see later if this design is optimized.
+Check the one in src/app/graphics_engine/device.rs
