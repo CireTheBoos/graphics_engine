@@ -5,7 +5,7 @@ use glam::Mat4;
 use vk_mem::AllocationCreateInfo;
 
 use crate::app::{
-    graphics_engine::{device::CustomMappedBuffer, Device},
+    graphics_engine::{device::MappedBuffer, Device},
     model::Camera,
 };
 
@@ -31,7 +31,7 @@ impl MVP {
     }
 }
 
-pub fn allocate_mvp(device: &Device) -> CustomMappedBuffer {
+pub fn allocate_mvp(device: &Device) -> MappedBuffer {
     let size = MVP::size_of() as u64;
     let queue_family_indices = [device.infos.graphics_idx];
     let buffer_info = BufferCreateInfo::default()
@@ -45,7 +45,5 @@ pub fn allocate_mvp(device: &Device) -> CustomMappedBuffer {
         ..Default::default()
     };
 
-    let buffer = super::create_buffer(device, &buffer_info, &create_info);
-
-    CustomMappedBuffer::new(device.allocator(), buffer)
+    device.ct_create_mapped_buffer(&buffer_info, &create_info)
 }

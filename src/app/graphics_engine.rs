@@ -37,9 +37,9 @@ impl GraphicsEngine {
         let renderer = Renderer::new(&device, presenter.swapchain_images());
 
         // Syncs
-        let image_available = device.new_semaphore();
-        let rendering_done = device.new_semaphore();
-        let fence_rendering_done = device.new_fence(true);
+        let image_available = device.bp_new_semaphore();
+        let rendering_done = device.bp_new_semaphore();
+        let fence_rendering_done = device.bp_new_fence(true);
 
         GraphicsEngine {
             surface,
@@ -63,7 +63,7 @@ impl GraphicsEngine {
             self.device.destroy_fence(self.fence_rendering_done, None);
             // destroy missions
             self.presenter.destroy(&self.device);
-            self.renderer.destroy(&self.device, self.device.allocator());
+            self.renderer.destroy(&self.device);
             // destroy surface
             instance.surface_khr().destroy_surface(self.surface, None);
         }
@@ -72,7 +72,7 @@ impl GraphicsEngine {
     pub fn frame(&mut self, objects: Vec<&dyn ToMesh>, camera: &Camera) {
         // Wait last rendering
         self.device
-            .wait_reset_fence(self.fence_rendering_done, None);
+            .bp_wait_reset_fence(self.fence_rendering_done, None);
 
         // Acquire next image
         let (image_idx, _) = self

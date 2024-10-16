@@ -11,7 +11,7 @@ pub fn allocate_configure_mvp_set(
     set_layouts: &[DescriptorSetLayout],
     buffer: &Buffer,
 ) -> DescriptorSet {
-    let set = super::allocate_descriptor_sets(device, descriptor_pool, set_layouts)[0];
+    let set = device.bp_allocate_descriptor_sets(descriptor_pool, set_layouts)[0];
     let buffer_info = DescriptorBufferInfo::default()
         .buffer(*buffer)
         .offset(0)

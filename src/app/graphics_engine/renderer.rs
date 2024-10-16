@@ -11,12 +11,11 @@ use ash::vk::{
 use glam::Mat4;
 use logic::{create_framebuffers, Pipeline, RenderPass};
 use resources::MVP;
-use vk_mem::Allocator;
 
 use crate::app::{graphics_engine::Device, model::Camera};
 
 use super::{
-    device::{CustomBuffer, CustomMappedBuffer},
+    device::{Buffer, MappedBuffer},
     mesher::{Mesh, Vertex},
 };
 
@@ -26,11 +25,11 @@ pub struct Renderer {
     graphics_queue: Queue,
     // Resources
     swapchain_image_views: Vec<ImageView>,
-    vertices: CustomBuffer,
-    staging_vertices: CustomBuffer,
-    indices: CustomBuffer,
-    staging_indices: CustomBuffer,
-    mvp: CustomMappedBuffer,
+    vertices: Buffer,
+    staging_vertices: Buffer,
+    indices: Buffer,
+    staging_indices: Buffer,
+    mvp: MappedBuffer,
     // Logic
     render_pass: RenderPass,
     framebuffers: Vec<Framebuffer>,
@@ -73,7 +72,7 @@ impl Renderer {
         let mvp_set =
             descriptors::allocate_configure_mvp_set(device, &uniform_pool, &set_layouts, &mvp);
 
-        // Cmds
+        // Commands
         let graphics_pool = commands::create_graphics_pool(device);
         let transfer_pool = commands::create_transfer_pool(device);
         let draw = commands::allocate_draw(device, graphics_pool);
@@ -87,7 +86,7 @@ impl Renderer {
         );
 
         // Syncs
-        let transfer_done = device.new_semaphore();
+        let transfer_done = device.bp_new_semaphore();
 
         Renderer {
             graphics_queue,
@@ -111,22 +110,27 @@ impl Renderer {
         }
     }
 
-    pub fn destroy(&mut self, device: &Device, allocator: &Allocator) {
+    pub fn destroy(&mut self, device: &Device) {
         unsafe {
-            // Cmds
+            // Syncs
+            device.destroy_semaphore(self.transfer_done, None);
+
+            // Commands
             device.destroy_command_pool(self.graphics_pool, None);
             device.destroy_command_pool(self.transfer_pool, None);
 
-            // Rscs
+            // Descriptors
+            device.destroy_descriptor_pool(self.uniform_pool, None);
+
+            // Resources
             for image_view in &mut self.swapchain_image_views {
                 device.destroy_image_view(*image_view, None);
             }
-            self.vertices.destroy(allocator);
-            self.staging_vertices.destroy(allocator);
-            self.indices.destroy(allocator);
-            self.staging_indices.destroy(allocator);
-            self.mvp.destroy(allocator);
-            device.destroy_descriptor_pool(self.uniform_pool, None);
+            device.ct_destroy_buffer(&mut self.vertices);
+            device.ct_destroy_buffer(&mut self.staging_vertices);
+            device.ct_destroy_buffer(&mut self.indices);
+            device.ct_destroy_buffer(&mut self.staging_indices);
+            device.ct_destroy_mapped_buffer(&mut self.mvp);
 
             // Logic
             for framebuffer in &mut self.framebuffers {
@@ -134,9 +138,6 @@ impl Renderer {
             }
             self.pipeline.destroy(device);
             device.destroy_render_pass(*self.render_pass, None);
-
-            // Syncs
-            device.destroy_semaphore(self.transfer_done, None);
         }
     }
 

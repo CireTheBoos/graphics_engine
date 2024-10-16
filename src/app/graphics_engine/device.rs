@@ -1,14 +1,15 @@
-mod allocator;
 mod boilerplate;
+mod buffer;
 mod physical_device;
 
 use crate::app::instance::Instance;
 
-pub use allocator::{CustomBuffer, CustomMappedBuffer};
+pub use buffer::{Buffer, MappedBuffer};
 
-use ash::vk::{self, SurfaceKHR};
+use ash::vk::{self, PhysicalDevice, SurfaceKHR};
 use physical_device::PhysicalDeviceInfos;
 use std::{ffi::c_char, ops::Deref};
+use vk_mem::{Allocator, AllocatorCreateInfo};
 
 const SWAPCHAIN_KHR_EXTENSION: *const c_char = c"VK_KHR_swapchain".as_ptr();
 
@@ -48,11 +49,7 @@ impl Device {
         let infos = physical_device::select_physical_device(instance, surface)
             .expect("Failed to find a suitable physical device.");
         let device = create_device(instance, &infos);
-        let allocator = Some(allocator::create_allocator(
-            instance,
-            &device,
-            infos.physical_device,
-        ));
+        let allocator = Some(create_allocator(instance, &device, infos.physical_device));
         let swapchain_khr_device = ash::khr::swapchain::Device::new(instance, &device);
         Device {
             device,
@@ -102,4 +99,13 @@ fn create_device(instance: &Instance, infos: &PhysicalDeviceInfos) -> ash::Devic
         .enabled_extension_names(&extensions);
     unsafe { instance.create_device(infos.physical_device, &create_info, None) }
         .expect("Failed to create device.")
+}
+
+fn create_allocator(
+    instance: &Instance,
+    device: &ash::Device,
+    physical_device: PhysicalDevice,
+) -> Allocator {
+    let create_info = AllocatorCreateInfo::new(instance, device, physical_device);
+    unsafe { Allocator::new(create_info).expect("Failed to create allocator.") }
 }

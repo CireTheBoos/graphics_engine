@@ -2,12 +2,12 @@ use ash::vk::{BufferCreateInfo, BufferUsageFlags, MemoryPropertyFlags, SharingMo
 use vk_mem::AllocationCreateInfo;
 
 use crate::app::graphics_engine::{
-    device::CustomBuffer,
+    device::Buffer,
     mesher::{Vertex, MAX_INDICES, MAX_VERTICES},
     Device,
 };
 
-pub fn allocate_vertices(device: &Device) -> CustomBuffer {
+pub fn allocate_vertices(device: &Device) -> Buffer {
     let queue_family_indices = [device.infos.graphics_idx, device.infos.transfer_idx];
     let buffer_info = BufferCreateInfo::default()
         .queue_family_indices(&queue_family_indices)
@@ -20,10 +20,10 @@ pub fn allocate_vertices(device: &Device) -> CustomBuffer {
         ..Default::default()
     };
 
-    super::create_buffer(device, &buffer_info, &create_info)
+    device.ct_create_buffer(&buffer_info, &create_info)
 }
 
-pub fn allocate_staging_vertices(device: &Device) -> CustomBuffer {
+pub fn allocate_staging_vertices(device: &Device) -> Buffer {
     let queue_family_indices = [device.infos.transfer_idx];
     let buffer_info = BufferCreateInfo::default()
         .queue_family_indices(&queue_family_indices)
@@ -36,10 +36,10 @@ pub fn allocate_staging_vertices(device: &Device) -> CustomBuffer {
         ..Default::default()
     };
 
-    super::create_buffer(device, &buffer_info, &create_info)
+    device.ct_create_buffer(&buffer_info, &create_info)
 }
 
-pub fn allocate_indices(device: &Device) -> CustomBuffer {
+pub fn allocate_indices(device: &Device) -> Buffer {
     let queue_family_indices = [device.infos.graphics_idx, device.infos.transfer_idx];
     let buffer_info = BufferCreateInfo::default()
         .queue_family_indices(&queue_family_indices)
@@ -52,10 +52,10 @@ pub fn allocate_indices(device: &Device) -> CustomBuffer {
         ..Default::default()
     };
 
-    super::create_buffer(device, &buffer_info, &create_info)
+    device.ct_create_buffer(&buffer_info, &create_info)
 }
 
-pub fn allocate_staging_indices(device: &Device) -> CustomBuffer {
+pub fn allocate_staging_indices(device: &Device) -> Buffer {
     let queue_family_indices = [device.infos.transfer_idx];
     let buffer_info = BufferCreateInfo::default()
         .queue_family_indices(&queue_family_indices)
@@ -68,5 +68,5 @@ pub fn allocate_staging_indices(device: &Device) -> CustomBuffer {
         ..Default::default()
     };
 
-    super::create_buffer(device, &buffer_info, &create_info)
+    device.ct_create_buffer(&buffer_info, &create_info)
 }
